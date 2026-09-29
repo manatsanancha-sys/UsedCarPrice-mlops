@@ -223,3 +223,4 @@ mlruns/
 .venv/
 mlflow.db
 model_export/
+model_export/
