@@ -4,3 +4,6 @@ kagglehub
 pandera
 pytest
 mlflow
+fastapi
+uvicorn
+cloudpickle
