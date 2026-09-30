@@ -7,12 +7,38 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  code-quality:
+    name: 1. Code quality (ruff)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install pandas scikit-learn pandera pytest
-      - run: pytest -q
+      # ติดตั้งเฉพาะ ruff เวอร์ชันที่ล็อกไว้ใน requirements.txt
+      - run: pip install "$(grep '^ruff==' requirements.txt)"
+      - run: ruff check .
+
+  data-validity:
+    name: 2. Data validity (schema tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: pytest tests/test_validation.py -v
+
+  model-quality:
+    name: 3. Model quality (MAPE gate vs baseline)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: pytest tests/test_model_quality.py -v
