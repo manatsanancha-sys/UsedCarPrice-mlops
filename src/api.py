@@ -3,7 +3,7 @@ import logging
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 import cloudpickle
 import pandas as pd
@@ -29,10 +29,11 @@ class Car(BaseModel):
     name: str
     year: int = Field(ge=1980, le=2026)
     km_driven: int = Field(ge=0, le=3_000_000)
-    fuel: str
-    seller_type: str
-    transmission: str
-    owner: str
+    # ค่าที่ยอมรับต้องตรงกับ schema ใน src/validation.py (ค่าอื่นตอบ 422)
+    fuel: Literal["Diesel", "Petrol", "CNG", "LPG"]
+    seller_type: Literal["Individual", "Dealer", "Trustmark Dealer"]
+    transmission: Literal["Manual", "Automatic"]
+    owner: Literal["First Owner", "Second Owner", "Third Owner", "Fourth & Above Owner", "Test Drive Car"]
     mileage: Optional[str] = None
     engine: Optional[str] = None
     max_power: Optional[str] = None

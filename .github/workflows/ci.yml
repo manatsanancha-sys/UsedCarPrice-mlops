@@ -20,7 +20,7 @@ jobs:
       - run: ruff check .
 
   data-validity:
-    name: 2. Data validity (schema tests)
+    name: 2. Data validity (schema + API input tests)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,7 +29,7 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt
-      - run: pytest tests/test_validation.py -v
+      - run: pytest tests/test_validation.py tests/test_api.py -v
 
   model-quality:
     name: 3. Model quality (MAPE gate vs baseline)
