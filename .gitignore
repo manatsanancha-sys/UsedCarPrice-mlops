@@ -226,3 +226,5 @@ model_export/
 model_export/
 
 archive.zip
+.venv_clean/
+logs/
