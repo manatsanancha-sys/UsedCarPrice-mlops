@@ -228,3 +228,4 @@ model_export/
 archive.zip
 .venv_clean/
 logs/
+UsedCarPrice-mlops/
