@@ -8,7 +8,7 @@ except ImportError:
 schema = pa.DataFrameSchema(
     {
         "name": pa.Column(nullable=False),
-        "year": pa.Column("int64", pa.Check.in_range(1980, 2000)),
+        "year": pa.Column("int64", pa.Check.in_range(1980, 2026)),
         "selling_price": pa.Column("int64", pa.Check.in_range(10_000, 20_000_000)),
         "km_driven": pa.Column("int64", pa.Check.in_range(0, 3_000_000)),
         "fuel": pa.Column(checks=pa.Check.isin(["Diesel", "Petrol", "CNG", "LPG"])),
@@ -46,4 +46,3 @@ if __name__ == "__main__":
     for name in ["train", "val", "test"]:
         validate(pd.read_csv(f"data/processed/{name}.csv"))
         print(name, "OK")
-
