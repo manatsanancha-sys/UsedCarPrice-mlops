@@ -1,4 +1,6 @@
 ﻿import subprocess
+import hashlib
+import sklearn
 
 import numpy as np
 import pandas as pd
@@ -42,6 +44,12 @@ def git_sha():
     except Exception:
         return "unknown"
 
+
+
+
+def data_version(path="data/processed/train.csv"):
+    with open(path, "rb") as f:
+        return hashlib.md5(f.read()).hexdigest()[:10]
 
 def build(estimator):
     num = Pipeline([("imp", SimpleImputer(strategy="median")), ("sc", StandardScaler())])
@@ -92,6 +100,11 @@ def main():
                     "train_rows": len(X_tr),
                     "val_rows": len(X_va),
                     "git_sha": git_sha(),
+                    "data_version": data_version(),
+                    "python_version": __import__("sys").version.split()[0],
+                    "sklearn_version": sklearn.__version__,
+                    "pandas_version": pd.__version__,
+                    "numpy_version": np.__version__,
                 }
             )
             mlflow.log_metrics(metrics)
