@@ -1,13 +1,16 @@
-﻿from contextlib import asynccontextmanager
+﻿import json
+import logging
+import time
+from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Optional
 
 import cloudpickle
 import pandas as pd
+from fastapi import FastAPI
+from pydantic import BaseModel, Field
 
-import json
-import time
-import logging
-from pathlib import Path
+from src.data_cleaning import clean_cars
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("used-car-api")
@@ -18,11 +21,6 @@ LOG_FILE.parent.mkdir(exist_ok=True)
 
 # อัตราแลกเปลี่ยน INR -> THB (ปรับตามอัตราปัจจุบันได้)
 INR_TO_THB = 0.39
-
-from fastapi import FastAPI
-from pydantic import BaseModel, Field
-
-from src.data_cleaning import clean_cars
 
 STATE = {}
 

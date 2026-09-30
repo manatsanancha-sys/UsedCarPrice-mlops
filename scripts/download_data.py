@@ -1,4 +1,7 @@
-import kagglehub, shutil, pathlib
+import pathlib
+import shutil
+
+import kagglehub
 
 path = kagglehub.dataset_download("nehalbirla/vehicle-dataset-from-cardekho")
 dst = pathlib.Path("data/raw")

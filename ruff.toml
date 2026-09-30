@@ -1,0 +1,7 @@
+# ตรวจคุณภาพโค้ดพื้นฐาน: pycodestyle (E) + pyflakes (F)
+target-version = "py312"
+line-length = 120
+extend-exclude = [".venv_clean", "notebooks", "mlruns"]
+
+[lint]
+select = ["E", "F"]
