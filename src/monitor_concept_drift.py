@@ -2,14 +2,17 @@
 """ตรวจ Concept Drift: ความสัมพันธ์ระหว่าง feature กับราคาเปลี่ยนไปหรือไม่
 วัดจากการที่ error ของโมเดล (residual) เพิ่มขึ้นเมื่อข้อมูลเปลี่ยนช่วงเวลา
 """
-import pandas as pd
+import mlflow
 import mlflow.sklearn
+import pandas as pd
 from sklearn.metrics import mean_absolute_error
 
 from src.data_cleaning import clean_cars
 
 NUM = ["year", "km_driven", "mileage", "engine", "max_power", "torque", "seats"]
 CAT = ["brand", "fuel", "seller_type", "transmission", "owner"]
+
+mlflow.set_tracking_uri("sqlite:///mlflow.db")
 
 CONCEPT_DRIFT_THRESHOLD = 1.3  # ถ้า error เพิ่มขึ้นเกิน 30% ถือว่า concept drift
 

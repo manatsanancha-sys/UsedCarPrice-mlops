@@ -75,10 +75,14 @@
   - ยืนยันด้วย `mlflow.search_runs()` แล้ว: 4 run ล่าสุด (git `8e2755c`) มี `data_version=1ea2f0cc54` (ตรงกับ MD5 ของ `train.csv`), `python_version=3.12.10`, `sklearn_version=1.9.1`, `pandas_version=3.0.6`, `numpy_version=2.5.3` ครบทุก run
   - run ชุดแรก 4 run (git `e4b3f27`) เทรนก่อนเพิ่มการ log ค่าเหล่านี้ → ใน UI ให้แคปเฉพาะ run ชุดล่าสุด
 - **เปรียบเทียบข้ามการทดลอง** — MLflow UI หน้า Compare (4 runs) → แคปหน้าจอ
-- **Model Registry** (`src/register.py`) — เลือก run MAE ต่ำสุด (ไม่รวม baseline) → register เป็นเวอร์ชันใหม่ของ `used-car-price` → ประเมินบน test → ผ่าน gate จึงตั้ง alias `champion`
+- **Model Registry** (`src/register.py`) — เลือก run MAE ต่ำสุด (ไม่รวม baseline) → register เป็นเวอร์ชันใหม่ของ `used-car-price` → ประเมินบน test → ผ่าน gate จึงตั้ง alias `champion`; ไม่ผ่าน → `sys.exit(1)` หยุด pipeline ก่อน export
 - **Rollback** (`src/rollback.py`) — ย้าย alias `champion` กลับเวอร์ชันก่อนหน้า
-  - registry ในเครื่องหลักตอนนี้มี version 1 และ 2 (`champion` = 2) — ทั้งสองเป็น Ridge ที่ได้ผลเท่ากัน เพราะเทรนจากข้อมูลและโค้ดเดียวกัน
-  - ⚠️ `rollback.py` ยัง hardcode `target_version = "1"` → **[TODO] ข้อ 7**: หาเวอร์ชันก่อนหน้าอัตโนมัติ + `src/retrain.py` สาธิตวงจรเทรนใหม่
+  - หาเวอร์ชันก่อน champion อัตโนมัติ (champion − 1); ถ้าไม่มีเวอร์ชันก่อนหน้า → พิมพ์ ERROR และ exit 1
+  - ผลสาธิตจริง: champion version 3 → rollback → version 2
+- **Retrain** (`src/retrain.py`) — เทรน challenger ด้วย train + val (5,908 แถว) → register → เทียบกับ champion บน test set เดียวกัน → promote เมื่อ MAPE ≤ 20% **และ** MAE ไม่แย่กว่า champion
+  - ผลจริง: challenger v3 MAE 177,922 / MAPE 19.2% vs champion v2 MAE 184,906 / MAPE 19.6% → **PROMOTE** (MAE ดีขึ้น 6,984)
+  - กรณีไม่ผ่าน (`--alpha 1000`): MAE 220,794 / MAPE 19.5% ผ่าน gate แต่ MAE แย่กว่า 35,889 → **NOT PROMOTED** คง champion เดิม
+  - registry ในเครื่องหลักหลังสาธิต: version 1, 2 (Ridge บน train), 3 (Ridge บน train + val); หลังสาธิต rollback (3 → 2) ได้ตั้ง `champion` กลับเป็น **version 3** (ดีที่สุด) และ export เป็น `model_export/model.pkl` แล้ว
 
 ## หมวด 5: การให้บริการและโครงสร้างพื้นฐาน (3 คะแนน)
 - **API (FastAPI, `src/api.py`)**
@@ -108,7 +112,7 @@
 - **สถานะระบบ** (`src/check_system_health.py`) — health + p95 ≤ 250 ms + error rate ≤ 1%
 - **แยก Data vs Concept Drift** — data drift ดูการกระจายของ input (ไม่ต้องมี label), concept drift ดู error ที่เพิ่มขึ้นเมื่อมี label (ความสัมพันธ์ feature→ราคาเปลี่ยน)
 - **นโยบายเทรนใหม่** (`docs/SLO_AND_RETRAIN_POLICY.md`) — trigger: data drift > 50% คอลัมน์, concept drift ratio > 1.3, หรือตรวจตามรอบทุกเดือน → เทรน → gate → promote / rollback
-  - **[TODO] ข้อ 7**: สาธิตวงจรจริงด้วย `src/retrain.py`
+  - สาธิตวงจรจริงด้วย `src/retrain.py` → `src/rollback.py` (ผลอยู่ในหมวด 4)
 - **CI (GitHub Actions, `.github/workflows/ci.yml`)** — 3 job แยกกัน, ติดตั้งจาก `requirements.txt` ที่ล็อกเวอร์ชัน
 
   | Job | ตรวจ | ผลจริง (run #26, PR #15) |
@@ -190,7 +194,7 @@
 | **O** | Data Drift Monitor | `src/monitor_drift.py` (Evidently) | train vs ข้อมูลใหม่ → `reports/drift_report.html` |
 | **P** | Concept Drift Monitor | `src/monitor_concept_drift.py` | MAE ใหม่ / MAE val > 1.3 → alert |
 | **Q** | System Health Check | `src/check_system_health.py` | `/health` + `/metrics` เทียบ SLO → HEALTHY / UNHEALTHY |
-| **R** | Retrain Policy | `docs/SLO_AND_RETRAIN_POLICY.md` | alert จาก O/P → สั่ง J ใหม่ |
+| **R** | Retrain | `src/retrain.py` + นโยบายใน `docs/SLO_AND_RETRAIN_POLICY.md` | alert จาก O/P → เทรน challenger → register → เทียบ champion → promote / คงเดิม |
 | **S** | GitHub (branch + PR) | GitHub | push / pull request → trigger T |
 | **T** | CI | GitHub Actions `ci.yml` | ruff · data/API tests · model quality gate |
 
@@ -205,7 +209,7 @@
 8. **M → L → D → model → M** คำขอ `/predict` → pydantic ตรวจ (ผิด → 422) → `clean_cars()` ตัวเดียวกับตอนเทรน → ทำนาย → ตอบ INR + THB
 9. **L → N** เขียน log ทุกคำขอ; **L → Q** `/metrics` ให้ health check อ่าน
 10. **B/N → O, P** ข้อมูลใหม่ (จำลองด้วย test set ปี ≥ 2018) → ตรวจ drift
-11. **O, P → R → J** เกินเกณฑ์ → เทรนใหม่ทั้ง pipeline → gate ใหม่
+11. **O, P → R → G** เกินเกณฑ์ → เทรน challenger → register → ผ่าน gate และดีกว่า champion จึง promote → I (export ใหม่)
 12. **G ⇄ H** ถ้าเวอร์ชันใหม่แย่ → rollback alias `champion`
 13. **S → T** ทุก PR เข้า `main` → CI 3 job ต้องผ่านก่อน merge
 
