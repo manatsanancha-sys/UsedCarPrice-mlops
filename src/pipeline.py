@@ -3,11 +3,11 @@ import subprocess
 import sys
 
 STEPS = [
-    ["python", "-m", "src.data_split"],
-    ["python", "-m", "src.validation"],
-    ["python", "-m", "src.train"],
-    ["python", "-m", "src.register"],
-    ["python", "-m", "src.export_model"],
+    [sys.executable, "-m", "src.data_split"],
+    [sys.executable, "-m", "src.validation"],
+    [sys.executable, "-m", "src.train"],
+    [sys.executable, "-m", "src.register"],
+    [sys.executable, "-m", "src.export_model"],
 ]
 
 
