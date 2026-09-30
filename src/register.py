@@ -1,4 +1,6 @@
-﻿import mlflow
+﻿import sys
+
+import mlflow
 import mlflow.sklearn
 from mlflow import MlflowClient
 from sklearn.metrics import mean_absolute_error, mean_absolute_percentage_error
@@ -38,6 +40,7 @@ def main():
         print(f"PASS gate -> version {mv.version} promoted to alias 'champion'")
     else:
         print(f"FAIL gate (MAPE {mape:.1%} > {GATE_MAPE:.0%}) -> NOT promoted")
+        sys.exit(1)  # หยุด pipeline ไม่ให้ export โมเดลที่ไม่ผ่านด่าน
 
 
 if __name__ == "__main__":

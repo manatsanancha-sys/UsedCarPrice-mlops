@@ -33,11 +33,11 @@
 
 ### ขั้นตอนวงจรเทรนใหม่ (Retrain Cycle)
 1. **ตรวจพบ** — `src/monitor_drift.py` และ `src/monitor_concept_drift.py` แจ้งเตือน
-2. **เทรนใหม่** — รัน `python -m src.pipeline` ด้วยข้อมูลล่าสุด (รวมข้อมูลใหม่เข้ากับข้อมูลเดิม)
+2. **เทรนใหม่** — รัน `python -m src.retrain` เทรน challenger ด้วยข้อมูลล่าสุด (จำลองด้วย train + val ปี ≤ 2017) แล้ว register เป็นเวอร์ชันใหม่
 3. **ประเมิน** — เทียบ MAE/MAPE ของโมเดลใหม่กับโมเดลเดิม (champion ปัจจุบัน) บน test set เดียวกัน
-4. **ด่านตรวจ (Gate)** — โมเดลใหม่ต้องมี MAPE ≤ 20% (ตาม Gating metric เดิม) และ MAE ดีกว่าหรือใกล้เคียงโมเดลเดิม
-5. **อนุมัติ** — ถ้าผ่านด่านตรวจ promote เป็น champion ใหม่ (`src/register.py`)
-6. **ย้อนกลับได้เสมอ** — ถ้าโมเดลใหม่แย่กว่าหลัง deploy จริง ใช้ `src/rollback.py` กลับไปเวอร์ชันก่อนหน้าได้ทันที (สาธิตแล้ว: version 2 → version 1)
+4. **ด่านตรวจ (Gate)** — โมเดลใหม่ต้องมี MAPE ≤ 20% (ตาม Gating metric เดิม) **และ** MAE ไม่แย่กว่า champion
+5. **อนุมัติ** — ผ่านทั้งสองข้อ → promote เป็น champion ใหม่ ไม่ผ่าน → คง champion เดิมพร้อมพิมพ์เหตุผล (`src/retrain.py`); จากนั้น `python -m src.export_model` และ build Docker image ใหม่
+6. **ย้อนกลับได้เสมอ** — ถ้าโมเดลใหม่แย่กว่าหลัง deploy จริง ใช้ `src/rollback.py` กลับไปเวอร์ชันก่อนหน้าได้ทันที โดยหาเวอร์ชันก่อน champion อัตโนมัติ (สาธิตแล้ว: version 3 → version 2)
 
 ## Endpoint ที่เกี่ยวข้อง
 - `GET /health` — เช็คว่า service พร้อมใช้งาน
