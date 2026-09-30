@@ -1,4 +1,4 @@
-from contextlib import asynccontextmanager
+﻿from contextlib import asynccontextmanager
 from typing import Optional
 
 import cloudpickle
@@ -15,6 +15,9 @@ logger = logging.getLogger("used-car-api")
 METRICS = {"total_requests": 0, "total_errors": 0, "latencies_ms": []}
 LOG_FILE = Path("logs/predictions.log")
 LOG_FILE.parent.mkdir(exist_ok=True)
+
+# อัตราแลกเปลี่ยน INR -> THB (ปรับตามอัตราปัจจุบันได้)
+INR_TO_THB = 0.39
 
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
@@ -63,7 +66,11 @@ def predict(car: Car):
         num = STATE["num"]
         df[num] = df[num].apply(pd.to_numeric, errors="coerce")
         price = float(STATE["model"].predict(df[STATE["features"]])[0])
-        result = {"predicted_price_inr": round(price), "model_version": STATE["version"]}
+        result = {
+            "predicted_price_inr": round(price),
+            "predicted_price_thb": round(price * INR_TO_THB),
+            "model_version": STATE["version"],
+        }
 
         latency_ms = (time.perf_counter() - start) * 1000
         METRICS["latencies_ms"].append(latency_ms)
@@ -93,3 +100,4 @@ def metrics():
         "p50_latency_ms": pct(0.5),
         "p95_latency_ms": pct(0.95),
     }
+
