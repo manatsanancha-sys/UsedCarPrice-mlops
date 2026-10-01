@@ -18,7 +18,7 @@ from mlflow.models import infer_signature
 from sklearn.linear_model import Ridge
 from sklearn.metrics import mean_absolute_error, mean_absolute_percentage_error
 
-from src.register import GATE_MAPE, NAME
+from src.register import GATE_MAPE, NAME, REF_YEAR, reference_mae
 from src.train import MODELS, build, git_sha, load, log_model
 
 
@@ -54,6 +54,7 @@ def main():
         est = Ridge(alpha=args.alpha)
         model = build(est).fit(X_new, y_new)
         mae, mape = evaluate(model, X_te, y_te)
+        ref = reference_mae(model, X_te, y_te)
         mlflow.log_params(est.get_params())
         mlflow.log_params(
             {
@@ -66,6 +67,7 @@ def main():
                 "sklearn_version": sklearn.__version__,
                 "pandas_version": pd.__version__,
                 "numpy_version": np.__version__,
+                "ref_mae": round(ref, 2),
             }
         )
         mlflow.log_metrics({"test_mae": mae, "test_mape": mape})
@@ -80,15 +82,15 @@ def main():
     champ_mae, champ_mape = evaluate(champ_model, X_te, y_te)
     print("\n=== เทียบบน test set เดียวกัน ===")
     print(f"champion   v{champ.version}: MAE={champ_mae:>10,.0f}  MAPE={champ_mape:.1%}")
-    print(f"challenger v{mv.version}: MAE={mae:>10,.0f}  MAPE={mape:.1%}")
+    print(f"challenger v{mv.version}: MAE={mae:>10,.0f}  MAPE={mape:.1%}  ref_mae({REF_YEAR})={ref:,.0f}")
 
     # 4) ตัดสินใจ: ต้องผ่าน gate และ MAE ไม่แย่กว่า champion
     passed_gate = mape <= GATE_MAPE
     not_worse = mae <= champ_mae
     if passed_gate and not_worse:
         client.set_registered_model_alias(NAME, "champion", mv.version)
-        print(f"\nPROMOTE -> champion = version {mv.version} "
-              f"(MAPE {mape:.1%} <= {GATE_MAPE:.0%} และ MAE ดีขึ้น {champ_mae - mae:,.0f})")
+        change = f"MAE ดีขึ้น {champ_mae - mae:,.0f}" if mae < champ_mae else "MAE ไม่แย่กว่าเดิม"
+        print(f"\nPROMOTE -> champion = version {mv.version} (MAPE {mape:.1%} <= {GATE_MAPE:.0%} และ {change})")
         print("ขั้นถัดไป: python -m src.export_model แล้ว build Docker image ใหม่")
     else:
         reasons = []
