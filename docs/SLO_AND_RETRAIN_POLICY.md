@@ -23,7 +23,7 @@
 
 ### เกณฑ์ที่กระตุ้นให้เทรนใหม่ (Trigger)
 1. **Data Drift:** Evidently ตรวจพบ Dataset Drift = Detected (share of drifted columns > 50%)
-2. **Concept Drift:** อัตราส่วน MAE ของข้อมูลใหม่ต่อ MAE ตอน validate (test/val ratio) เกิน **1.3 เท่า** (`src/monitor_concept_drift.py`)
+2. **Concept Drift:** MAE บนข้อมูลใหม่ (test ปี 2019–2020) หารด้วย `ref_mae` (MAE บน test ปี 2018 ที่บันทึกใน MLflow ตอน register/retrain) เกิน **1.3 เท่า** (`src/monitor_concept_drift.py`) — ใช้ได้ไม่ว่า champion จะเทรนด้วยข้อมูลชุดไหน
 3. **กำหนดเวลา:** ตรวจสอบทุก 1 เดือน แม้ไม่มี trigger ข้างต้น (preventive check)
 
 ### สถานะปัจจุบันของระบบ (ผลตรวจจริง)

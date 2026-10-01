@@ -108,7 +108,7 @@
 ## หมวด 6: การนำส่ง การเฝ้าระวัง และ CI/CD (3 คะแนน)
 - **Data Drift** (`src/monitor_drift.py`, Evidently `DataDriftPreset`, train vs test) → `reports/drift_report.html`: **Dataset Drift detected, 11 จาก 12 คอลัมน์ (share 0.917)**
   - **[TODO]** โค้ดยังไม่เทียบเกณฑ์ 50% / ไม่ exit 1 เอง (เกณฑ์อยู่ในเอกสารเท่านั้น)
-- **Concept Drift / คุณภาพการทำนาย** (`src/monitor_concept_drift.py`) — test MAE / val MAE = 184,906 / 120,615 = **1.53** > เกณฑ์ **1.3** → detected
+- **Concept Drift / คุณภาพการทำนาย** (`src/monitor_concept_drift.py`) — MAE สดบน test ปี 2019–2020 ÷ `ref_mae` (MAE บน test ปี 2018 ที่บันทึกใน MLflow ตอน register/retrain): champion v4 → 224,618 / 146,433 = **1.53** > เกณฑ์ **1.3** → detected (exit 1); champion ที่ไม่มี `ref_mae` → แจ้งให้ retrain ใหม่ (exit 2)
 - **สถานะระบบ** (`src/check_system_health.py`) — health + p95 ≤ 250 ms + error rate ≤ 1%
 - **แยก Data vs Concept Drift** — data drift ดูการกระจายของ input (ไม่ต้องมี label), concept drift ดู error ที่เพิ่มขึ้นเมื่อมี label (ความสัมพันธ์ feature→ราคาเปลี่ยน)
 - **นโยบายเทรนใหม่** (`docs/SLO_AND_RETRAIN_POLICY.md`) — trigger: data drift > 50% คอลัมน์, concept drift ratio > 1.3, หรือตรวจตามรอบทุกเดือน → เทรน → gate → promote / rollback
@@ -192,7 +192,7 @@
 | **M** | Client | ผู้ขาย / `curl` / `scripts/load_test.py` | JSON สเปกรถ → ราคา INR + THB |
 | **N** | Prediction Logs | `logs/predictions.log` | input, output, latency ต่อคำขอ |
 | **O** | Data Drift Monitor | `src/monitor_drift.py` (Evidently) | train vs ข้อมูลใหม่ → `reports/drift_report.html` |
-| **P** | Concept Drift Monitor | `src/monitor_concept_drift.py` | MAE ใหม่ / MAE val > 1.3 → alert |
+| **P** | Concept Drift Monitor | `src/monitor_concept_drift.py` | MAE ปี 2019–2020 / `ref_mae` (ปี 2018 จาก MLflow) > 1.3 → alert |
 | **Q** | System Health Check | `src/check_system_health.py` | `/health` + `/metrics` เทียบ SLO → HEALTHY / UNHEALTHY |
 | **R** | Retrain | `src/retrain.py` + นโยบายใน `docs/SLO_AND_RETRAIN_POLICY.md` | alert จาก O/P → เทรน challenger → register → เทียบ champion → promote / คงเดิม |
 | **S** | GitHub (branch + PR) | GitHub | push / pull request → trigger T |
