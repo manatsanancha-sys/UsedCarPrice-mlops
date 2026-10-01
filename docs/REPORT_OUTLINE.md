@@ -11,9 +11,9 @@
 
 ## 0. บทนำ / ภาพรวม
 - ปัญหา: ผู้ขายรถมือสองตั้งราคาไม่ถูก → ขาดทุนหรือขายช้า (รายละเอียดใน `docs/AI_PROJECT_CANVAS.md`)
-- ผลลัพธ์หลัก: Ridge Regression, test MAE 184,906 INR (~72,100 THB), test MAPE 19.6% ผ่าน gate ≤ 20%
+- ผลลัพธ์หลัก: Ridge Regression (champion v4, เทรนบน train + val), test MAE 177,922 INR (~69,400 THB), test MAPE 19.2% ผ่าน gate ≤ 20%
 - ระบบครบวงจร: ข้อมูลดิบ → ตรวจสอบ → เทรน → ทะเบียนโมเดล → API ใน Docker → เฝ้าระวัง → CI
-- สมาชิกกลุ่มและหน้าที่ **[TODO — ใส่ชื่อ/รหัส/งานที่รับผิดชอบ]**
+- สมาชิกกลุ่มและหน้าที่: ตารางทีมพัฒนา 7 คนใน `README.md`
 
 ---
 
@@ -22,7 +22,7 @@
 - **ทำไมใช้ ML แทนกฎ** — baseline "ราคากลางของตลาด" (`DummyRegressor(strategy="median")`) ได้ val MAPE 45.3% vs Ridge 17.1%; ข้อมูลมี 32 ยี่ห้อ × เชื้อเพลิง × เกียร์ × เจ้าของ เขียนกฎเองไม่ไหว
 - **Optimizing metric = MAE** — อ่านเป็นเงินได้ตรง, ไม่ถูกรถหรูไม่กี่คันดึงมากเท่า RMSE
 - **Gating metric = MAPE ≤ 20%** บน test set — `GATE_MAPE = 0.20` ใน `src/register.py`
-- **เชื่อมกับธุรกิจ** — MAE = 20.6% ของราคาเฉลี่ย test (896,128 INR); ทำนายคลาดไม่เกิน ±20% ได้ 63.2% ของรถ; แม่นสุดช่วง 700k–1.5M INR (MAPE 15.8%), แย่สุดรถ < 300k INR (MAPE 70.7%) — ตารางเต็มใน Canvas หัวข้อ 8
+- **เชื่อมกับธุรกิจ** — (champion v4) MAE = 19.9% ของราคาเฉลี่ย test (896,128 INR); ทำนายคลาดไม่เกิน ±20% ได้ 64.5% ของรถ; แม่นสุดช่วง 700k–1.5M INR (MAPE 14.8%), แย่สุดรถ < 300k INR (MAPE 69.8%) — ตารางเต็มใน Canvas หัวข้อ 8
 
 ## หมวด 2: ข้อมูลและการตรวจสอบคุณภาพ (3 คะแนน)
 - **แหล่งข้อมูล** — Kaggle `nehalbirla/vehicle-dataset-from-cardekho` (`Car details v3.csv`) ดาวน์โหลดด้วย `scripts/download_data.py` (kagglehub)
@@ -57,7 +57,7 @@
   | random_forest | n_estimators=200, min_samples_leaf=2 | 135,776 | 363,139 | 15.0% |
 - **เหตุผลเลือก Ridge** — MAE ต่ำสุด (optimizing metric) และ RMSE ต่ำกว่าโมเดลต้นไม้เกือบครึ่ง (ผิดพลาดหนักน้อยกว่า) + เล็ก เร็ว อธิบายง่าย
   - ต้องอธิบายข้อแลกเปลี่ยน: HistGBM/RF มี **MAPE ดีกว่า** (14.4%/15.0%) — เลือกตาม MAE ตามที่ตั้งไว้ตั้งแต่ต้น
-- **ผลบน test (champion)** — MAE 184,906, MAPE 19.6%
+- **ผลบน test** — โมเดลที่เลือก (Ridge เทรนบน train, v1): MAE 184,906 / MAPE 19.6% → หลัง retrain ด้วย train + val (champion v4): MAE 177,922 / MAPE 19.2%
 - **[TODO]** การ tune hyperparameter (เช่น Ridge `alpha` หลายค่า) — ตอนนี้แต่ละโมเดลรัน 1 ค่า
 - **[TODO]** การอธิบายผล: coefficient ของ Ridge / permutation importance, error analysis (มีแยกตามช่วงราคาแล้วใน Canvas)
 
@@ -78,11 +78,12 @@
 - **Model Registry** (`src/register.py`) — เลือก run MAE ต่ำสุด (ไม่รวม baseline) → register เป็นเวอร์ชันใหม่ของ `used-car-price` → ประเมินบน test → ผ่าน gate จึงตั้ง alias `champion`; ไม่ผ่าน → `sys.exit(1)` หยุด pipeline ก่อน export
 - **Rollback** (`src/rollback.py`) — ย้าย alias `champion` กลับเวอร์ชันก่อนหน้า
   - หาเวอร์ชันก่อน champion อัตโนมัติ (champion − 1); ถ้าไม่มีเวอร์ชันก่อนหน้า → พิมพ์ ERROR และ exit 1
-  - ผลสาธิตจริง: champion version 3 → rollback → version 2
+  - ผลสาธิตจริง (ตอน registry มี v1–v3): champion version 3 → rollback → version 2
 - **Retrain** (`src/retrain.py`) — เทรน challenger ด้วย train + val (5,908 แถว) → register → เทียบกับ champion บน test set เดียวกัน → promote เมื่อ MAPE ≤ 20% **และ** MAE ไม่แย่กว่า champion
-  - ผลจริง: challenger v3 MAE 177,922 / MAPE 19.2% vs champion v2 MAE 184,906 / MAPE 19.6% → **PROMOTE** (MAE ดีขึ้น 6,984)
+  - ผลจริง (รอบแรก): challenger v3 MAE 177,922 / MAPE 19.2% vs champion v2 MAE 184,906 / MAPE 19.6% → **PROMOTE** (MAE ดีขึ้น 6,984)
   - กรณีไม่ผ่าน (`--alpha 1000`): MAE 220,794 / MAPE 19.5% ผ่าน gate แต่ MAE แย่กว่า 35,889 → **NOT PROMOTED** คง champion เดิม
-  - registry ในเครื่องหลักหลังสาธิต: version 1, 2 (Ridge บน train), 3 (Ridge บน train + val); หลังสาธิต rollback (3 → 2) ได้ตั้ง `champion` กลับเป็น **version 3** (ดีที่สุด) และ export เป็น `model_export/model.pkl` แล้ว
+  - registry ในเครื่องหลักปัจจุบัน: version 1, 2 (Ridge บน train, MAE 184,906), 3 และ 4 (Ridge บน train + val, MAE 177,922)
+  - **champion = version 4** — สร้างด้วย `retrain.py` เวอร์ชันที่บันทึก `ref_mae` (146,433, MAE บน test ปี 2018) สำหรับ concept drift; export เป็น `model_export/model.pkl` แล้ว (v3 เดิมไม่มี `ref_mae` และไม่ถูกแก้ไข)
 
 ## หมวด 5: การให้บริการและโครงสร้างพื้นฐาน (3 คะแนน)
 - **API (FastAPI, `src/api.py`)**
@@ -96,9 +97,9 @@
 
   | SLO | เกณฑ์ | วัดได้ |
   |---|---|---|
-  | p50 latency | ≤ 100 ms | 44.0 ms |
-  | p95 latency | ≤ 250 ms | 86.3 ms |
-  | Throughput | ≥ 50 req/s | 200.4 req/s |
+  | p50 latency | ≤ 100 ms | 41.9 ms |
+  | p95 latency | ≤ 250 ms | 95.6 ms |
+  | Throughput | ≥ 50 req/s | 211.6 req/s |
   | Error rate | ≤ 1% | 0% |
   - ตรวจเทียบ SLO อัตโนมัติด้วย `src/check_system_health.py` (อ่าน `/health` + `/metrics`, exit 1 ถ้าเกิน)
 - **รูปแบบการให้บริการ** — Real-time synchronous (เหตุผลใน `docs/SLO_AND_RETRAIN_POLICY.md`: ผู้ขายต้องการราคาทันที, โมเดลเล็ก inference เร็ว, โหลดไม่สูง)
@@ -130,7 +131,7 @@
 - **Reproducibility** — `requirements.txt` ล็อก 141 แพ็กเกจ (`pywin32` ติดตั้งเฉพาะ Windows), Python 3.12 ทั้ง Docker/CI, `random_state=42`, split ตามปี (ไม่สุ่ม)
   - ยืนยันแล้ว: venv ใหม่ + `pip install -r requirements.txt` + `python -m src.pipeline` → ได้ตัวเลขเท่าเดิมทุกตัว
 - **Git / GitHub** — ทำงานผ่าน feature branch + Pull Request, merge ผ่าน Pull Request แล้ว 15 PR (#1–#16 ยกเว้น #4) + merge ตรง 1 ครั้ง (`9e26f8c`), รวม 44 commits
-- **README** — **[TODO] ยังไม่มีขั้นตอนรันจากเครื่องเปล่า** (ตอนนี้มีแค่ภาพรวมและผลล่าสุด)
+- **README** — ขั้นตอนรันจากเครื่องเปล่าครบ (venv → download → pipeline → retrain → Docker → curl → load test → monitor → rollback) ทดสอบทำตามจริงใน `git clone` ใหม่แล้ว
 - **.gitignore** — ไม่นำ `data/`, `mlruns/`, `mlflow.db`, `model_export/`, `logs/`, `.env` ขึ้น repo
 
 ## หมวด 8: การนำเสนอ รายงาน และการทดสอบ (2 คะแนน)
@@ -152,7 +153,7 @@
 - **[TODO]** สไลด์ 12 นาที + แบ่งบทพูดให้สมาชิกทุกคน
 
 ## การใช้ AI ช่วยพัฒนา (บังคับตามเอกสารโครงงาน)
-> ฉบับย่อของหัวข้อนี้อยู่ใน `README.md` ด้วย ข้อมูลด้านล่างมาจากประวัติ git — **[TODO] ทีมต้องเติมส่วนที่ใช้ AI ก่อนหน้านี้ที่ git ไม่ได้บันทึก**
+> ฉบับย่อของหัวข้อนี้อยู่ใน `README.md` ด้วย ข้อมูลด้านล่างมาจากประวัติ git (ตรวจได้ด้วย `git log --grep="Co-Authored-By: Claude"`)
 - เครื่องมือ: Claude Code (Anthropic)
 - ส่วนที่มีหลักฐานใน git (commit มี trailer `Co-Authored-By: Claude`):
 
@@ -162,7 +163,14 @@
   | `6117ed9` | CI 3 ด้าน, `ruff.toml`, `tests/test_model_quality.py`, fixture |
   | `8c44c83` | `Literal` ใน API + `tests/test_api.py` |
   | `c4e6d63` | ร่าง `docs/AI_PROJECT_CANVAS.md` |
-  | (commit นี้) | ร่าง `docs/REPORT_OUTLINE.md` |
+  | `4c0c249` | ร่าง `docs/REPORT_OUTLINE.md`, หัวข้อการใช้ AI ใน README |
+  | `33d9c02` | `src/retrain.py`, rollback หาเวอร์ชันก่อนหน้าอัตโนมัติ, `register.py` exit 1 เมื่อไม่ผ่าน gate |
+  | `18e4e67` | เขียน README ใหม่ทั้งไฟล์ + `examples/car.json` (ทดสอบตาม README ใน clone ใหม่) |
+  | `1357e18` | concept drift ใช้ `ref_mae` ปี 2018 จาก MLflow เทียบกับ MAE ปี 2019–2020 |
+  | `ba82faa` | เกณฑ์แจ้งเตือน data drift 50% + exit code ใน `monitor_drift.py` |
+  | `7a03d17` | `check_system_health.py` แสดง UNHEALTHY แทน traceback เมื่อ API ไม่ตอบสนอง |
+  | `593c3fe` | อธิบายข้อจำกัด `/metrics` แบบ multi-worker + คำสั่ง demo `--workers 1` |
+  | — | sync ตัวเลขในเอกสารให้ตรงกับ champion v4 และ SLO ล่าสุด (commit นี้) |
 - งานที่ AI ช่วยตรวจ: เทียบ repo กับเกณฑ์การให้คะแนน, คำนวณตัวเลขธุรกิจจากโมเดลจริง
 - ทีมรีวิวทุก diff และผลทดสอบก่อน merge; ต้องอธิบายโค้ดทุกบรรทัดได้ตามข้อกำหนด
 - หมายเหตุสภาพแวดล้อม: บาง commit เดิมรันบน Google Colab เพราะเครื่อง local ติด DLL block (`79ac97e`, `e7faeb4`)

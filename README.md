@@ -240,7 +240,12 @@ mlflow ui --backend-store-uri sqlite:///mlflow.db
 | `c4e6d63` | ร่าง `docs/AI_PROJECT_CANVAS.md` |
 | `4c0c249` | ร่าง `docs/REPORT_OUTLINE.md`, หัวข้อนี้ใน README |
 | `33d9c02` | `src/retrain.py`, rollback หาเวอร์ชันก่อนหน้าอัตโนมัติ, `register.py` exit 1 เมื่อไม่ผ่าน gate |
-| (commit นี้) | เขียน README ใหม่ทั้งไฟล์ + `examples/car.json` |
+| `18e4e67` | เขียน README ใหม่ทั้งไฟล์ + `examples/car.json` (ทดสอบตาม README ใน clone ใหม่) |
+| `1357e18` | concept drift ใช้ `ref_mae` ปี 2018 จาก MLflow เทียบกับ MAE ปี 2019–2020 (`register.py`, `retrain.py`, `monitor_concept_drift.py`) |
+| `ba82faa` | เกณฑ์แจ้งเตือน data drift 50% + exit code ใน `monitor_drift.py` |
+| `7a03d17` | `check_system_health.py` แสดง UNHEALTHY แทน traceback เมื่อ API ไม่ตอบสนอง |
+| `593c3fe` | อธิบายข้อจำกัด `/metrics` แบบ multi-worker + คำสั่ง demo `--workers 1` |
+| — | sync ตัวเลขในเอกสารให้ตรงกับ champion v4 และ SLO ล่าสุด |
 
 - AI ช่วยตรวจ repo เทียบกับเกณฑ์การให้คะแนน และคำนวณตัวเลขเชิงธุรกิจจากโมเดลจริง
 - ตรวจสอบได้ด้วย `git log --grep="Co-Authored-By: Claude"`
