@@ -107,7 +107,8 @@
 
 ## หมวด 6: การนำส่ง การเฝ้าระวัง และ CI/CD (3 คะแนน)
 - **Data Drift** (`src/monitor_drift.py`, Evidently `DataDriftPreset`, train vs test) → `reports/drift_report.html`: **Dataset Drift detected, 11 จาก 12 คอลัมน์ (share 0.917)**
-  - **[TODO]** โค้ดยังไม่เทียบเกณฑ์ 50% / ไม่ exit 1 เอง (เกณฑ์อยู่ในเอกสารเท่านั้น)
+  - เกณฑ์แจ้งเตือนในโค้ด `DATA_DRIFT_THRESHOLD = 0.5`: share > 50% → พิมพ์ `DATA DRIFT DETECTED` และ exit 1, ไม่เกิน → exit 0
+  - เลือกข้อมูลได้ด้วย `--reference` / `--current` (ค่าเริ่มต้น train / test); ทดสอบ train vs train ได้ 0/12 → exit 0
 - **Concept Drift / คุณภาพการทำนาย** (`src/monitor_concept_drift.py`) — test MAE / val MAE = 184,906 / 120,615 = **1.53** > เกณฑ์ **1.3** → detected
 - **สถานะระบบ** (`src/check_system_health.py`) — health + p95 ≤ 250 ms + error rate ≤ 1%
 - **แยก Data vs Concept Drift** — data drift ดูการกระจายของ input (ไม่ต้องมี label), concept drift ดู error ที่เพิ่มขึ้นเมื่อมี label (ความสัมพันธ์ feature→ราคาเปลี่ยน)
