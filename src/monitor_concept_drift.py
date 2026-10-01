@@ -1,47 +1,58 @@
 
 """ตรวจ Concept Drift: ความสัมพันธ์ระหว่าง feature กับราคาเปลี่ยนไปหรือไม่
-วัดจากการที่ error ของโมเดล (residual) เพิ่มขึ้นเมื่อข้อมูลเปลี่ยนช่วงเวลา
+เทียบ MAE บนข้อมูลใหม่ (test ปีหลัง REF_YEAR) กับ ref_mae ที่บันทึกไว้ใน MLflow run ของ champion
+(MAE บน test ปี REF_YEAR ตอน register) -> ใช้ได้ไม่ว่า champion จะเทรนด้วยข้อมูลชุดไหน
+
+exit 0 = ไม่พบ drift, exit 1 = พบ drift, exit 2 = champion ไม่มี ref_mae (ประเมินไม่ได้)
 """
+import sys
+
 import mlflow
 import mlflow.sklearn
 import pandas as pd
+from mlflow import MlflowClient
 from sklearn.metrics import mean_absolute_error
 
 from src.data_cleaning import clean_cars
 
 NUM = ["year", "km_driven", "mileage", "engine", "max_power", "torque", "seats"]
 CAT = ["brand", "fuel", "seller_type", "transmission", "owner"]
+NAME = "used-car-price"
+REF_YEAR = 2018  # ต้องตรงกับ REF_YEAR ใน src/register.py
 
 mlflow.set_tracking_uri("sqlite:///mlflow.db")
 
 CONCEPT_DRIFT_THRESHOLD = 1.3  # ถ้า error เพิ่มขึ้นเกิน 30% ถือว่า concept drift
 
 
-def load(name):
-    df = clean_cars(pd.read_csv(f"data/processed/{name}.csv"))
-    return df[NUM + CAT], df["selling_price"]
-
-
 def main():
-    model = mlflow.sklearn.load_model("models:/used-car-price@champion")
+    client = MlflowClient()
+    champ = client.get_model_version_by_alias(NAME, "champion")
+    params = client.get_run(champ.run_id).data.params
+    print(f"champion = version {champ.version}")
 
-    X_val, y_val = load("val")
-    X_test, y_test = load("test")
+    if "ref_mae" not in params:
+        print("champion เวอร์ชันนี้ไม่มี ref_mae บันทึกไว้ ต้อง retrain ใหม่ด้วยโค้ดเวอร์ชันล่าสุดก่อน")
+        sys.exit(2)
+    ref_mae = float(params["ref_mae"])
 
-    val_mae = mean_absolute_error(y_val, model.predict(X_val))
-    test_mae = mean_absolute_error(y_test, model.predict(X_test))
-    ratio = test_mae / val_mae
+    model = mlflow.sklearn.load_model(f"models:/{NAME}/{champ.version}")
+    df = clean_cars(pd.read_csv("data/processed/test.csv"))
+    cur = df[df["year"] > REF_YEAR]
+    cur_mae = mean_absolute_error(cur["selling_price"], model.predict(cur[NUM + CAT]))
+    ratio = cur_mae / ref_mae
 
-    print(f"val MAE  = {val_mae:,.0f}")
-    print(f"test MAE = {test_mae:,.0f}")
-    print(f"ratio (test/val) = {ratio:.2f}")
+    years = f"{cur['year'].min()}-{cur['year'].max()}"
+    print(f"ref MAE ({REF_YEAR}, จาก MLflow) = {ref_mae:,.0f}")
+    print(f"current MAE ({years}, {len(cur)} แถว) = {cur_mae:,.0f}")
+    print(f"ratio (current/ref) = {ratio:.2f}")
 
     if ratio > CONCEPT_DRIFT_THRESHOLD:
         print(f"CONCEPT DRIFT DETECTED: error เพิ่มขึ้น {(ratio-1)*100:.0f}% "
               f"(เกินเกณฑ์ {CONCEPT_DRIFT_THRESHOLD}x) -> ความสัมพันธ์ feature-ราคาเปลี่ยนไป "
               f"ควรพิจารณาเทรนโมเดลใหม่")
-    else:
-        print("ไม่พบ concept drift ที่มีนัยสำคัญ")
+        sys.exit(1)
+    print("ไม่พบ concept drift ที่มีนัยสำคัญ")
 
 
 if __name__ == "__main__":
