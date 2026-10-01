@@ -45,8 +45,14 @@ def check_metrics():
 
 
 def main():
-    health_ok = check_health()
-    metrics_ok = check_metrics()
+    try:
+        health_ok = check_health()
+        metrics_ok = check_metrics()
+    except requests.RequestException as e:
+        # API ดับ / timeout / ตอบ HTTP error -> แจ้งสั้นๆ แทน traceback
+        print(f"[health] เรียก {API_URL} ไม่สำเร็จ: {type(e).__name__}")
+        print("\nSYSTEM STATUS: UNHEALTHY - API ไม่ตอบสนอง")
+        sys.exit(1)
     if health_ok and metrics_ok:
         print("\nSYSTEM STATUS: HEALTHY")
         sys.exit(0)
