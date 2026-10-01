@@ -15,6 +15,9 @@ from src.data_cleaning import clean_cars
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("used-car-api")
 
+# METRICS อยู่ในหน่วยความจำของ process -> uvicorn --workers N จะมี METRICS แยกกัน N ชุด
+# /metrics จึงตอบเฉพาะยอดของ worker ที่รับคำขอนั้น (สุ่มไปมา) ไม่ใช่ยอดรวมทั้งระบบ
+# เวลา demo ให้รัน --workers 1 (ดู README หัวข้อ /metrics) ถึงจะเห็นยอดตรงกับจำนวนที่ยิงจริง
 METRICS = {"total_requests": 0, "total_errors": 0, "latencies_ms": []}
 LOG_FILE = Path("logs/predictions.log")
 LOG_FILE.parent.mkdir(exist_ok=True)
@@ -90,6 +93,7 @@ def predict(car: Car):
 
 @app.get("/metrics")
 def metrics():
+    # ค่าต่อ worker เท่านั้น (ดูคำอธิบายที่ METRICS); นับเฉพาะคำขอที่เข้าถึง predict() ไม่รวม 422
     lat = sorted(METRICS["latencies_ms"])
     def pct(q):
         return lat[min(len(lat) - 1, int(q * len(lat)))] if lat else None

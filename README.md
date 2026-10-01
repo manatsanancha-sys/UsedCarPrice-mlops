@@ -121,8 +121,21 @@ curl http://localhost:8000/metrics
 ผลตัวอย่าง `/predict`: `{"predicted_price_inr": ..., "predicted_price_thb": ..., "model_version": "2"}`
 เอกสาร API แบบโต้ตอบ: http://localhost:8000/docs
 
-หมายเหตุ: container รัน 4 workers และ `/metrics` เก็บค่าในหน่วยความจำของแต่ละ worker
-ค่าที่ได้จึงเป็นของ worker ที่ตอบคำขอนั้น (อาจเห็น `total_requests` น้อยกว่าจำนวนที่ส่งจริง)
+#### ข้อควรรู้เรื่อง `/metrics` (สำคัญตอน demo)
+
+container รัน uvicorn **4 workers** และแต่ละ worker เก็บ `/metrics` ในหน่วยความจำของตัวเอง
+ค่าที่ได้จึงเป็นยอดของ worker ที่ตอบคำขอนั้นเท่านั้น — ทดสอบจริง: ยิง `/predict` 20 ครั้ง
+แล้วเรียก `/metrics` ซ้ำได้ `total_requests` = 2, 4, 8, 6 สลับกัน (รวมกัน = 20)
+และ `check_system_health` อาจผ่านโดยเห็น `total_requests=0` / `p95=None`
+
+**เวลา demo `/metrics` และ `check_system_health` ให้รันด้วย 1 worker** (ยิง 3 ครั้ง → `total_requests=3` ทุกครั้ง):
+
+```bash
+docker rm -f usedcar-api
+docker run -d --name usedcar-api -p 8000:8000 usedcar-api python -m uvicorn src.api:app --host 0.0.0.0 --port 8000 --workers 1
+```
+
+ตอนวัด throughput (`scripts/load_test.py`) ใช้ 4 workers ตามปกติ — ตัวเลข latency/throughput วัดจากฝั่ง client จึงไม่ได้รับผลกระทบ
 
 ค่าที่ API รับ (ต้องตรงตัวพิมพ์ ค่าอื่นได้ HTTP 422):
 
