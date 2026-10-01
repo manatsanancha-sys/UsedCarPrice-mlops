@@ -45,9 +45,11 @@ def main():
         mlflow.log_param("ref_mae", round(ref, 2))
 
     if mape <= GATE_MAPE:
+        client.set_model_version_tag(NAME, mv.version, "gate_passed", "true")  # rollback ย้อนได้เฉพาะเวอร์ชันนี้
         client.set_registered_model_alias(NAME, "champion", mv.version)
         print(f"PASS gate -> version {mv.version} promoted to alias 'champion'")
     else:
+        client.set_model_version_tag(NAME, mv.version, "gate_passed", "false")
         print(f"FAIL gate (MAPE {mape:.1%} > {GATE_MAPE:.0%}) -> NOT promoted")
         sys.exit(1)  # หยุด pipeline ไม่ให้ export โมเดลที่ไม่ผ่านด่าน
 
