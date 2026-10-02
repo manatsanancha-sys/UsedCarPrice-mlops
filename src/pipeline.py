@@ -1,25 +1,9 @@
-"""รัน pipeline ทั้งหมดตั้งแต่ข้อมูลดิบจนถึงโมเดล champion เรียงลำดับ"""
-import subprocess
-import sys
+"""รัน pipeline ทั้งหมดด้วยคำสั่งเดียว — ตัวจริงคือ Prefect flow (DAG) ใน src/flow.py
 
-STEPS = [
-    [sys.executable, "-m", "src.data_split"],
-    [sys.executable, "-m", "src.validation"],
-    [sys.executable, "-m", "src.train"],
-    [sys.executable, "-m", "src.register"],
-    [sys.executable, "-m", "src.export_model"],
-]
-
-
-def main():
-    for step in STEPS:
-        print(f"\n=== RUN: {' '.join(step)} ===")
-        result = subprocess.run(step)
-        if result.returncode != 0:
-            print(f"FAILED at: {' '.join(step)}")
-            sys.exit(1)
-    print("\n=== PIPELINE COMPLETE ===")
-
+python -m src.pipeline          = ข้อมูลดิบ -> validate -> train -> register(gate) -> export + drift monitors
+python -m src.pipeline --serve  = เพิ่ม build/run Docker API ต่อท้าย
+"""
+from src.flow import main
 
 if __name__ == "__main__":
     main()

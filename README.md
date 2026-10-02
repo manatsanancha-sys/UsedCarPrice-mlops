@@ -41,7 +41,8 @@ UsedCarPrice-mlops/
 │   ├── train.py                 # เทรน 4 โมเดล + log ลง MLflow
 │   ├── register.py              # register โมเดลที่ดีที่สุด + gate MAPE ≤ 20% -> alias champion
 │   ├── export_model.py          # export champion -> model_export/model.pkl
-│   ├── pipeline.py              # รันทุกขั้นข้างบนต่อกันด้วยคำสั่งเดียว
+│   ├── flow.py                  # Prefect flow (DAG) ของทั้ง pipeline + drift monitors
+│   ├── pipeline.py              # คำสั่งเดียว: python -m src.pipeline -> เรียก flow.py
 │   ├── retrain.py               # วงจรเทรนใหม่: challenger vs champion
 │   ├── rollback.py              # ย้อน champion ไปเวอร์ชันก่อนหน้า
 │   ├── api.py                   # FastAPI: /predict /health /metrics
@@ -83,14 +84,32 @@ python scripts/download_data.py
 
 ได้ไฟล์ `data/raw/car_details_v3.csv` (ชุดข้อมูลสาธารณะ ไม่ต้องล็อกอิน Kaggle)
 
-### 3. รัน pipeline (split → validation → train → register → export)
+### 3. รัน pipeline (Prefect DAG)
 
 ```bash
 python -m src.pipeline
 ```
 
+pipeline เป็น Prefect flow (`src/flow.py`) — task ต่อกันเป็น DAG และสาขาเฝ้าระวังรันขนานกับสายหลัก:
+
+```
+download -> split -> validate -> train -> register(gate) -> export -> [serve]
+              |                                  |
+              +-> data_drift                     +-> concept_drift
+```
+
 ต้องจบด้วย `=== PIPELINE COMPLETE ===` และได้ `model_export/model.pkl` (champion = version 1)
-ถ้าข้อมูลไม่ผ่าน schema หรือโมเดลไม่ผ่าน gate จะหยุดพร้อม `FAILED at: ...` (exit 1)
+ถ้ายังไม่มี `data/raw/` task `download_data` จะดาวน์โหลดให้เอง (ขั้น 2 ข้ามได้)
+ถ้าข้อมูลไม่ผ่าน schema หรือโมเดลไม่ผ่าน gate จะหยุดพร้อม `PIPELINE FAILED: หยุดที่ขั้น ...` (exit 1) และ task ปลายน้ำไม่ถูกรัน
+`python -m src.pipeline --serve` = รันต่อจนถึง build/run Docker API (ขั้น 5) ในคำสั่งเดียว
+
+ดู DAG และสถานะแต่ละ task ใน Prefect UI (ไม่บังคับ):
+
+```bash
+prefect server start
+```
+
+เปิดอีก terminal ตั้ง `PREFECT_API_URL=http://127.0.0.1:4200/api` แล้วรัน `python -m src.pipeline` → ดูที่ http://127.0.0.1:4200
 
 ### 4. เทรนใหม่ (retrain) แล้ว export champion ล่าสุด
 
@@ -234,7 +253,7 @@ mlflow ui --backend-store-uri sqlite:///mlflow.db
 | Data Validation | Pandera |
 | Experiment Tracking | MLflow Tracking (SQLite backend) |
 | Model Registry | MLflow Model Registry (alias `champion`) |
-| Pipeline | `src/pipeline.py` |
+| Pipeline Orchestration | Prefect (`src/flow.py`) — DAG, retry/state ต่อ task, UI |
 | Model Serving | FastAPI + uvicorn |
 | Monitoring | Evidently (data drift) + สคริปต์ concept drift / system health |
 | CI/CD | GitHub Actions |
