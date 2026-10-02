@@ -1,0 +1,8 @@
+# ไม่ส่งเข้า build context (ใช้กับทั้ง Dockerfile และ Dockerfile.demo)
+.venv
+.venv_clean
+.git
+data/raw
+**/__pycache__
+.pytest_cache
+.ruff_cache

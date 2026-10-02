@@ -27,6 +27,8 @@
 UsedCarPrice-mlops/
 ├── .github/workflows/ci.yml     # CI 3 ด้าน: ruff · data/API tests · model quality gate
 ├── Dockerfile                   # image สำหรับ API (python:3.12-slim, 4 workers, HEALTHCHECK)
+├── Dockerfile.demo              # image สำหรับสาธิตสคริปต์วิเคราะห์ (ไม่ใช่ deploy)
+├── .dockerignore                # ตัด .venv/.git/data/raw/__pycache__ ออกจาก build context
 ├── requirements.txt             # dependency ทั้งหมด ล็อกเวอร์ชัน (ใช้เทรน/ทดสอบ)
 ├── requirements-api.txt         # dependency เฉพาะ API ใน Docker
 ├── ruff.toml                    # config ตรวจคุณภาพโค้ด
@@ -205,6 +207,26 @@ pytest -v
 ```bash
 docker rm -f usedcar-api
 ```
+
+### รันสคริปต์วิเคราะห์ใน Docker (`Dockerfile.demo`)
+
+`Dockerfile.demo` เป็น image สำหรับ**สาธิต/แคปภาพ**เท่านั้น ไม่ใช่สำหรับ deploy (deploy ใช้ `Dockerfile` ที่มีแค่ API)
+ใช้เมื่อเครื่องรัน Python ตรงๆ ไม่ได้ หรืออยากรัน `explain_model` / `monitor_*` ใน environment เดียวกับ CI (Linux)
+
+- ติดตั้ง `requirements.txt` เต็ม และ copy `src/`, `data/processed/`, `mlflow.db`, `mlruns/`, `model_export/` ณ ตอน build
+  → ต้องรัน pipeline/retrain/export บนเครื่องมาก่อน และ build ใหม่ทุกครั้งที่ registry เปลี่ยน
+- ไม่มี CMD — เรียกสคริปต์ทีละตัว; ใช้ `--rm` จึงไม่แตะ `mlflow.db` จริงของเครื่อง
+
+```bash
+docker build -f Dockerfile.demo -t used-car-demo .
+docker run --rm used-car-demo python -m src.explain_model
+docker run --rm used-car-demo python -m src.monitor_drift
+docker run --rm used-car-demo python -m src.monitor_concept_drift
+```
+
+`monitor_*` จบด้วย exit 1 เมื่อพบ drift (เป็นการแจ้งเตือนตามที่ออกแบบ ไม่ใช่ error)
+เอาไฟล์ผลลัพธ์ออกมา (PowerShell): `docker run --rm -v "${PWD}\demo_out\reports:/app/reports" used-car-demo python -m src.monitor_drift`
+(`drift_report.html`) และ `-v "${PWD}\demo_out\docs:/app/docs" ... python -m src.explain_model` (`model_explanation.md`)
 
 ## Model Registry / MLflow
 
