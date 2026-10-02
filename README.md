@@ -197,7 +197,10 @@ mlflow ui --backend-store-uri sqlite:///mlflow.db
 
 - ทุก run บันทึก: เวอร์ชันโค้ด (`git_sha`), เวอร์ชันข้อมูล (`data_version` = MD5), hyperparameters, metrics, model artifact, สภาพแวดล้อม (Python/scikit-learn/pandas/numpy)
 - `train.py` tune Ridge ด้วย alpha 0.1 / 1 / 10 / 50 / 100 (แยก run `ridge_alpha=…`) เลือกจาก val MAE → alpha = 1.0
-- `register.py` เลือก run ที่ val MAE ต่ำสุด (ไม่รวม baseline) → register → ผ่าน gate MAPE ≤ 20% จึงตั้ง alias `champion` และติด tag `gate_passed=true`
+- `register.py` เลือก run ที่ val MAE ต่ำสุด (ไม่รวม baseline) → register → ต้องผ่าน gate MAPE ≤ 20% **และ** MAE บน test ไม่แย่กว่า champion ปัจจุบัน จึงตั้ง alias `champion` และติด tag `gate_passed=true`
+  - ผ่าน gate แต่แย่กว่า champion → ไม่ promote (`gate_passed=false`) pipeline เดินต่อและ export champion เดิม (exit 0)
+  - ไม่ผ่าน gate → `gate_passed=false` และหยุด pipeline (exit 1)
+  - ผลคือรัน pipeline ซ้ำได้อย่างปลอดภัย: ถ้าโมเดลใหม่ไม่ดีกว่า champion เดิมจะไม่ถูกแทนที่
 - อธิบายผลโมเดล: `python -m src.explain_model` → [docs/model_explanation.md](docs/model_explanation.md) (coefficient รายฟีเจอร์ + เหตุผลการเลือก alpha)
 - `export_model.py` export เฉพาะ `champion` ให้ API ใช้
 
@@ -267,6 +270,7 @@ mlflow ui --backend-store-uri sqlite:///mlflow.db
 | `ca9e770` | API ตรวจค่าตัวเลขให้ตรงกับ schema ตอนเทรน (seats 2–14, mileage/engine/max_power/torque) |
 | `c0cd1ab` | rollback ข้ามเวอร์ชันที่ตกด่านด้วย tag `gate_passed` |
 | `a6b0678` | Ridge hyperparameter tuning (alpha 5 ค่า) + `src/explain_model.py` |
+| `b9ea755` | `register.py` เทียบกับ champion ปัจจุบันก่อน promote (ผ่าน gate + MAE ไม่แย่กว่า) |
 | — | sync เอกสารกับ tuning, rollback แบบ `gate_passed` และการตรวจค่าตัวเลขของ API |
 
 - AI ช่วยตรวจ repo เทียบกับเกณฑ์การให้คะแนน และคำนวณตัวเลขเชิงธุรกิจจากโมเดลจริง

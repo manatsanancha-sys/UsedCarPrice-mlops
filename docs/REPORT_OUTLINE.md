@@ -75,7 +75,7 @@
   - ยืนยันด้วย `mlflow.search_runs()` แล้ว: 4 run ล่าสุด (git `8e2755c`) มี `data_version=1ea2f0cc54` (ตรงกับ MD5 ของ `train.csv`), `python_version=3.12.10`, `sklearn_version=1.9.1`, `pandas_version=3.0.6`, `numpy_version=2.5.3` ครบทุก run
   - run ชุดแรก 4 run (git `e4b3f27`) เทรนก่อนเพิ่มการ log ค่าเหล่านี้ → ใน UI ให้แคปเฉพาะ run ชุดล่าสุด
 - **เปรียบเทียบข้ามการทดลอง** — MLflow UI หน้า Compare (4 runs) → แคปหน้าจอ
-- **Model Registry** (`src/register.py`) — เลือก run MAE ต่ำสุด (ไม่รวม baseline) → register เป็นเวอร์ชันใหม่ของ `used-car-price` → ประเมินบน test → ผ่าน gate จึงตั้ง alias `champion`; ไม่ผ่าน → `sys.exit(1)` หยุด pipeline ก่อน export
+- **Model Registry** (`src/register.py`) — เลือก run MAE ต่ำสุด (ไม่รวม baseline) → register เป็นเวอร์ชันใหม่ของ `used-car-price` → ประเมินบน test → promote เป็น `champion` เมื่อผ่าน gate **และ** MAE ไม่แย่กว่า champion ปัจจุบัน (หลักเดียวกับ `retrain.py`); ผ่าน gate แต่แย่กว่า → ไม่ promote, `gate_passed=false`, exit 0; ไม่ผ่าน gate → `sys.exit(1)` หยุด pipeline ก่อน export · ทดสอบแล้ว: champion ดีกว่า (177,922) + pipeline ได้ 184,906 → NOT PROMOTED champion คงเดิม; champion แย่กว่า (200,219) + pipeline ได้ 184,906 → PROMOTE
 - **Rollback** (`src/rollback.py`) — ย้าย alias `champion` กลับเวอร์ชันก่อนหน้า
   - หาเวอร์ชันก่อน champion ที่มี tag `gate_passed=true` (ติดโดย `register.py`/`retrain.py` ตอน promote) ข้ามเวอร์ชันที่ตกด่าน; ถ้าไม่มี → พิมพ์ ERROR และ exit 1 · ทดสอบแล้ว: v1 ผ่าน, v2 ตกด่าน, v3 champion → rollback ไป v1 (ข้าม v2)
   - ผลสาธิตจริง (ตอน registry มี v1–v3): champion version 3 → rollback → version 2
@@ -174,6 +174,7 @@
   | `ca9e770` | API ตรวจค่าตัวเลขให้ตรงกับ schema ตอนเทรน (seats 2–14, mileage/engine/max_power/torque) |
   | `c0cd1ab` | rollback ข้ามเวอร์ชันที่ตกด่านด้วย tag `gate_passed` |
   | `a6b0678` | Ridge hyperparameter tuning (alpha 5 ค่า) + `src/explain_model.py` |
+  | `b9ea755` | `register.py` เทียบกับ champion ปัจจุบันก่อน promote (ผ่าน gate + MAE ไม่แย่กว่า) |
   | — | sync เอกสารกับ tuning, rollback แบบ `gate_passed` และการตรวจค่าตัวเลขของ API (commit นี้) |
 - งานที่ AI ช่วยตรวจ: เทียบ repo กับเกณฑ์การให้คะแนน, คำนวณตัวเลขธุรกิจจากโมเดลจริง
 - ทีมรีวิวทุก diff และผลทดสอบก่อน merge; ต้องอธิบายโค้ดทุกบรรทัดได้ตามข้อกำหนด
@@ -196,7 +197,7 @@
 | **D** | Cleaning (shared) | `src/data_cleaning.py` `clean_cars()` | ข้อความ เช่น "23.4 kmpl" → ตัวเลข, `name` → `brand` |
 | **E** | Training | `src/train.py` — 4 โมเดล ผ่าน `build()` | clean data → โมเดล + metrics |
 | **F** | Experiment Tracking | MLflow (`mlflow.db`, `mlruns/`) | params, metrics, artifacts, git SHA, data version, env |
-| **G** | Model Registry + Gate | `src/register.py` (MLflow Registry) | best run → version ใหม่ → test MAPE ≤ 20%? → alias `champion` |
+| **G** | Model Registry + Gate | `src/register.py` (MLflow Registry) | best run → version ใหม่ → test MAPE ≤ 20%? และ MAE ไม่แย่กว่า champion? → alias `champion` |
 | **H** | Rollback | `src/rollback.py` | ย้าย alias `champion` กลับเวอร์ชันก่อน |
 | **I** | Export | `src/export_model.py` | `champion` → `model_export/model.pkl` |
 | **J** | Pipeline Runner | `src/pipeline.py` | สั่ง B → C → E → G → I ตามลำดับ |
@@ -216,7 +217,7 @@
 2. **B → C** ตรวจ schema ทุกชุด ❌ ไม่ผ่าน → pipeline หยุด (exit 1)
 3. **C → D → E** clean ด้วยฟังก์ชันร่วม แล้วเทรน 4 โมเดล
 4. **E → F** log ครบ 6 อย่างของทุก run
-5. **F → G** เลือก run MAE ต่ำสุด → register → ประเมิน test → ผ่าน gate → `champion`
+5. **F → G** เลือก run MAE ต่ำสุด → register → ประเมิน test → ผ่าน gate และไม่แย่กว่า champion เดิม → `champion`
 6. **G → I** export `champion` เป็น `model.pkl`
 7. **I → K** `docker build` คัดลอก `model.pkl` + `api.py` + `data_cleaning.py` เข้า image
 8. **M → L → D → model → M** คำขอ `/predict` → pydantic ตรวจ (ผิด → 422) → `clean_cars()` ตัวเดียวกับตอนเทรน → ทำนาย → ตอบ INR + THB
