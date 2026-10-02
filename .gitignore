@@ -229,3 +229,4 @@ archive.zip
 .venv_clean/
 logs/
 UsedCarPrice-mlops/
+demo_out/

@@ -1,0 +1,23 @@
+# image สำหรับรันสคริปต์วิเคราะห์ตอนสาธิต (explain_model / monitor_drift / monitor_concept_drift ฯลฯ)
+# แยกจาก Dockerfile หลัก (API สำหรับ deploy) — ไม่มี CMD, เรียกสคริปต์ทีละตัวด้วย docker run
+# ต้องรัน pipeline/retrain/export บนเครื่องมาก่อน เพราะ copy data/processed, mlflow.db, mlruns, model_export ที่มีอยู่
+FROM python:3.12
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir --progress-bar off -r requirements.txt
+
+COPY src/ src/
+COPY data/processed/ data/processed/
+COPY model_export/ model_export/
+COPY mlflow.db .
+COPY mlruns/ mlruns/
+COPY reports/ reports/
+COPY docs/ docs/
+
+# mlflow.db ที่สร้างบน Windows เก็บ artifact เป็น path "file:C:/.../mlruns/..." ซึ่งใน Linux ถูกอ่านเป็น path
+# สัมพัทธ์จาก /app -> สร้าง symlink ที่ path นั้นให้ชี้มา /app/mlruns (ไม่ต้องแก้ mlflow.db)
+ARG HOST_REPO=C:/Users/User/UsedCarPrice-mlops
+RUN mkdir -p "/app/${HOST_REPO}" && ln -s /app/mlruns "/app/${HOST_REPO}/mlruns"
+
+ENV MLFLOW_DISABLE_AGENT_HINT=1 PYTHONIOENCODING=utf-8 PYTHONWARNINGS=ignore
