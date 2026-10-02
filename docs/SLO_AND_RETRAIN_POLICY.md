@@ -37,7 +37,7 @@
 3. **ประเมิน** — เทียบ MAE/MAPE ของโมเดลใหม่กับโมเดลเดิม (champion ปัจจุบัน) บน test set เดียวกัน
 4. **ด่านตรวจ (Gate)** — โมเดลใหม่ต้องมี MAPE ≤ 20% (ตาม Gating metric เดิม) **และ** MAE ไม่แย่กว่า champion
 5. **อนุมัติ** — ผ่านทั้งสองข้อ → promote เป็น champion ใหม่ ไม่ผ่าน → คง champion เดิมพร้อมพิมพ์เหตุผล (`src/retrain.py`); จากนั้น `python -m src.export_model` และ build Docker image ใหม่
-6. **ย้อนกลับได้เสมอ** — ถ้าโมเดลใหม่แย่กว่าหลัง deploy จริง ใช้ `src/rollback.py` กลับไปเวอร์ชันก่อนหน้าได้ทันที โดยหาเวอร์ชันก่อน champion อัตโนมัติ (สาธิตแล้ว: version 3 → version 2)
+6. **ย้อนกลับได้เสมอ** — ถ้าโมเดลใหม่แย่กว่าหลัง deploy จริง ใช้ `src/rollback.py` กลับไปเวอร์ชันก่อนหน้าได้ทันที โดยหาเวอร์ชันก่อน champion ที่มี tag `gate_passed=true` อัตโนมัติ ข้ามเวอร์ชันที่ตกด่าน (สาธิตแล้ว: version 3 → version 2 บน registry หลัก และ v3 → v1 ข้าม v2 ที่ตกด่านในการทดสอบ)
 
 ## Endpoint ที่เกี่ยวข้อง
 - `GET /health` — เช็คว่า service พร้อมใช้งาน

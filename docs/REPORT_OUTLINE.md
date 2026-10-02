@@ -36,7 +36,7 @@
   - `strict=True` (ห้ามคอลัมน์แปลกปลอม), `lazy=True` (รายงานทุกข้อผิดพลาดพร้อมกัน)
 - **สาธิตข้อมูลเสีย → ระบบหยุด + แจ้งเตือน**
   - ตอนเทรน: `load()` ใน `src/train.py` เรียก `validate()` ก่อนเทรน → ข้อมูลผิดโยน `SchemaErrors` → `src/pipeline.py` หยุดด้วย exit 1 และพิมพ์ `FAILED at: ...`
-  - ตอนให้บริการ: API ตอบ **422** เมื่อ `fuel="Water"`, `year=2099`, `km_driven=-5` (`tests/test_api.py`)
+  - ตอนให้บริการ: API ตอบ **422** เมื่อ `fuel="Water"`, `year=2099`, `km_driven=-5`, `seats` นอก 2–14 และเมื่อ `mileage`/`engine`/`max_power`/`torque` ไม่มีตัวเลข ติดลบ หรือเกินขอบเขต (เช่น `engine="-500 CC"`) — ช่วงเดียวกับ schema ตอนเทรน; ทุกแถวข้อมูลเทรนจริงใน fixture ผ่าน (`tests/test_api.py`)
   - unit test: `tests/test_validation.py` ข้อมูลดี 1 เคสผ่าน, ข้อมูลเสีย 4 เคสถูกจับ
   - **[TODO]** สคริปต์/คลิปสาธิต "ป้อนไฟล์ CSV เสียเข้า pipeline แล้วหยุด" สำหรับวันนำเสนอ
 - **ป้องกัน Training-Serving Skew**
@@ -58,8 +58,8 @@
 - **เหตุผลเลือก Ridge** — MAE ต่ำสุด (optimizing metric) และ RMSE ต่ำกว่าโมเดลต้นไม้เกือบครึ่ง (ผิดพลาดหนักน้อยกว่า) + เล็ก เร็ว อธิบายง่าย
   - ต้องอธิบายข้อแลกเปลี่ยน: HistGBM/RF มี **MAPE ดีกว่า** (14.4%/15.0%) — เลือกตาม MAE ตามที่ตั้งไว้ตั้งแต่ต้น
 - **ผลบน test** — โมเดลที่เลือก (Ridge เทรนบน train, v1): MAE 184,906 / MAPE 19.6% → หลัง retrain ด้วย train + val (champion v4): MAE 177,922 / MAPE 19.2%
-- **[TODO]** การ tune hyperparameter (เช่น Ridge `alpha` หลายค่า) — ตอนนี้แต่ละโมเดลรัน 1 ค่า
-- **[TODO]** การอธิบายผล: coefficient ของ Ridge / permutation importance, error analysis (มีแยกตามช่วงราคาแล้วใน Canvas)
+- **Hyperparameter tuning** (`RIDGE_ALPHAS` ใน `src/train.py`) — Ridge ลอง alpha 0.1 / 1 / 10 / 50 / 100 แยกเป็น run `ridge_alpha=…` ใน MLflow; เลือกจาก **val MAE** → alpha = 1.0 (120,615) · ถ้าเลือกจาก test จะได้ alpha = 0.1 (test 182,880 vs 184,906) แต่ไม่ทำเพื่อป้องกัน data leakage — ตารางเต็มใน `docs/model_explanation.md`
+- **การอธิบายผล** (`python -m src.explain_model` → `docs/model_explanation.md`) — coefficient ของ champion: ความสำคัญ brand > year > fuel > max_power; year +1 SD (3.8 ปี) → ราคา +52.9%, max_power +1 SD (31 bhp) → +28.2%, แบรนด์หรู (Land Rover/Mercedes/BMW) เป็นบวก แบรนด์ประหยัด (Tata/Chevrolet/Datsun) เป็นลบ; error analysis แยกตามช่วงราคาอยู่ใน Canvas หัวข้อ 8
 
 ## หมวด 4: การติดตามการทดลองและทะเบียนโมเดล (2 คะแนน)
 - **MLflow tracking** (`sqlite:///mlflow.db`, experiment `used-car-price`) — บันทึก 6 อย่างใน `src/train.py`
@@ -77,7 +77,7 @@
 - **เปรียบเทียบข้ามการทดลอง** — MLflow UI หน้า Compare (4 runs) → แคปหน้าจอ
 - **Model Registry** (`src/register.py`) — เลือก run MAE ต่ำสุด (ไม่รวม baseline) → register เป็นเวอร์ชันใหม่ของ `used-car-price` → ประเมินบน test → ผ่าน gate จึงตั้ง alias `champion`; ไม่ผ่าน → `sys.exit(1)` หยุด pipeline ก่อน export
 - **Rollback** (`src/rollback.py`) — ย้าย alias `champion` กลับเวอร์ชันก่อนหน้า
-  - หาเวอร์ชันก่อน champion อัตโนมัติ (champion − 1); ถ้าไม่มีเวอร์ชันก่อนหน้า → พิมพ์ ERROR และ exit 1
+  - หาเวอร์ชันก่อน champion ที่มี tag `gate_passed=true` (ติดโดย `register.py`/`retrain.py` ตอน promote) ข้ามเวอร์ชันที่ตกด่าน; ถ้าไม่มี → พิมพ์ ERROR และ exit 1 · ทดสอบแล้ว: v1 ผ่าน, v2 ตกด่าน, v3 champion → rollback ไป v1 (ข้าม v2)
   - ผลสาธิตจริง (ตอน registry มี v1–v3): champion version 3 → rollback → version 2
 - **Retrain** (`src/retrain.py`) — เทรน challenger ด้วย train + val (5,908 แถว) → register → เทียบกับ champion บน test set เดียวกัน → promote เมื่อ MAPE ≤ 20% **และ** MAE ไม่แย่กว่า champion
   - ผลจริง (รอบแรก): challenger v3 MAE 177,922 / MAPE 19.2% vs champion v2 MAE 184,906 / MAPE 19.6% → **PROMOTE** (MAE ดีขึ้น 6,984)
@@ -170,7 +170,11 @@
   | `ba82faa` | เกณฑ์แจ้งเตือน data drift 50% + exit code ใน `monitor_drift.py` |
   | `7a03d17` | `check_system_health.py` แสดง UNHEALTHY แทน traceback เมื่อ API ไม่ตอบสนอง |
   | `593c3fe` | อธิบายข้อจำกัด `/metrics` แบบ multi-worker + คำสั่ง demo `--workers 1` |
-  | — | sync ตัวเลขในเอกสารให้ตรงกับ champion v4 และ SLO ล่าสุด (commit นี้) |
+  | `f98ef3f` | sync ตัวเลขในเอกสารให้ตรงกับ champion v4 และ SLO ล่าสุด |
+  | `ca9e770` | API ตรวจค่าตัวเลขให้ตรงกับ schema ตอนเทรน (seats 2–14, mileage/engine/max_power/torque) |
+  | `c0cd1ab` | rollback ข้ามเวอร์ชันที่ตกด่านด้วย tag `gate_passed` |
+  | `a6b0678` | Ridge hyperparameter tuning (alpha 5 ค่า) + `src/explain_model.py` |
+  | — | sync เอกสารกับ tuning, rollback แบบ `gate_passed` และการตรวจค่าตัวเลขของ API (commit นี้) |
 - งานที่ AI ช่วยตรวจ: เทียบ repo กับเกณฑ์การให้คะแนน, คำนวณตัวเลขธุรกิจจากโมเดลจริง
 - ทีมรีวิวทุก diff และผลทดสอบก่อน merge; ต้องอธิบายโค้ดทุกบรรทัดได้ตามข้อกำหนด
 - หมายเหตุสภาพแวดล้อม: บาง commit เดิมรันบน Google Colab เพราะเครื่อง local ติด DLL block (`79ac97e`, `e7faeb4`)
