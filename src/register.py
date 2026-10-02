@@ -3,6 +3,7 @@
 import mlflow
 import mlflow.sklearn
 from mlflow import MlflowClient
+from mlflow.exceptions import MlflowException
 from sklearn.metrics import mean_absolute_error, mean_absolute_percentage_error
 
 from src.train import load
@@ -16,6 +17,14 @@ def reference_mae(model, X, y):
     """MAE บน test เฉพาะปี REF_YEAR -> บันทึกเป็น param ref_mae ให้ monitor_concept_drift ใช้"""
     mask = X["year"] == REF_YEAR
     return mean_absolute_error(y[mask], model.predict(X[mask]))
+
+
+def current_champion(client):
+    """champion ปัจจุบัน หรือ None ถ้ายังไม่เคยมี (register ครั้งแรก)"""
+    try:
+        return client.get_model_version_by_alias(NAME, "champion")
+    except MlflowException:
+        return None
 
 
 def main():
@@ -44,12 +53,26 @@ def main():
         mlflow.log_metrics({"test_mae": mae, "test_mape": mape})
         mlflow.log_param("ref_mae", round(ref, 2))
 
-    if mape <= GATE_MAPE:
-        client.set_registered_model_alias(NAME, "champion", mv.version)
-        print(f"PASS gate -> version {mv.version} promoted to alias 'champion'")
-    else:
+    if mape > GATE_MAPE:
+        client.set_model_version_tag(NAME, mv.version, "gate_passed", "false")
         print(f"FAIL gate (MAPE {mape:.1%} > {GATE_MAPE:.0%}) -> NOT promoted")
         sys.exit(1)  # หยุด pipeline ไม่ให้ export โมเดลที่ไม่ผ่านด่าน
+
+    # ผ่าน gate แล้วต้องไม่แย่กว่า champion ปัจจุบันบน test set เดียวกัน (หลักเดียวกับ retrain.py)
+    champ = current_champion(client)
+    if champ is not None:
+        champ_model = mlflow.sklearn.load_model(f"models:/{NAME}/{champ.version}")
+        champ_mae = mean_absolute_error(y_te, champ_model.predict(X_te))
+        print(f"champion v{champ.version} TEST MAE={champ_mae:,.0f}")
+        if mae > champ_mae:
+            client.set_model_version_tag(NAME, mv.version, "gate_passed", "false")
+            print(f"NOT PROMOTED -> คง champion = version {champ.version} "
+                  f"(ผ่าน gate แต่ MAE แย่กว่า champion {mae - champ_mae:,.0f})")
+            return  # exit 0: ไม่ใช่ความผิดพลาด pipeline export champion เดิมต่อได้
+
+    client.set_model_version_tag(NAME, mv.version, "gate_passed", "true")  # rollback ย้อนได้เฉพาะเวอร์ชันนี้
+    client.set_registered_model_alias(NAME, "champion", mv.version)
+    print(f"PASS gate -> version {mv.version} promoted to alias 'champion'")
 
 
 if __name__ == "__main__":

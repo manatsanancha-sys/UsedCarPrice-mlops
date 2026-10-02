@@ -87,12 +87,15 @@ def main():
     # 4) ตัดสินใจ: ต้องผ่าน gate และ MAE ไม่แย่กว่า champion
     passed_gate = mape <= GATE_MAPE
     not_worse = mae <= champ_mae
+    # gate_passed = ผ่านการอนุมัติครบ (gate + ไม่แย่กว่า champion) -> rollback ย้อนได้เฉพาะเวอร์ชันที่เป็น "true"
     if passed_gate and not_worse:
+        client.set_model_version_tag(NAME, mv.version, "gate_passed", "true")
         client.set_registered_model_alias(NAME, "champion", mv.version)
         change = f"MAE ดีขึ้น {champ_mae - mae:,.0f}" if mae < champ_mae else "MAE ไม่แย่กว่าเดิม"
         print(f"\nPROMOTE -> champion = version {mv.version} (MAPE {mape:.1%} <= {GATE_MAPE:.0%} และ {change})")
         print("ขั้นถัดไป: python -m src.export_model แล้ว build Docker image ใหม่")
     else:
+        client.set_model_version_tag(NAME, mv.version, "gate_passed", "false")
         reasons = []
         if not passed_gate:
             reasons.append(f"MAPE {mape:.1%} เกินเกณฑ์ {GATE_MAPE:.0%}")
