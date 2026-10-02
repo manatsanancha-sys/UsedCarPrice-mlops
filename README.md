@@ -43,13 +43,14 @@ UsedCarPrice-mlops/
 │   ├── export_model.py          # export champion -> model_export/model.pkl
 │   ├── pipeline.py              # รันทุกขั้นข้างบนต่อกันด้วยคำสั่งเดียว
 │   ├── retrain.py               # วงจรเทรนใหม่: challenger vs champion
-│   ├── rollback.py              # ย้อน champion ไปเวอร์ชันก่อนหน้า
+│   ├── rollback.py              # ย้อน champion ไปเวอร์ชันก่อนหน้าที่ผ่าน gate
+│   ├── explain_model.py         # coefficient ของ champion -> docs/model_explanation.md
 │   ├── api.py                   # FastAPI: /predict /health /metrics
 │   ├── monitor_drift.py         # Data Drift (Evidently) -> reports/drift_report.html
 │   ├── monitor_concept_drift.py # Concept Drift (error ratio)
 │   └── check_system_health.py   # ตรวจ /health + /metrics เทียบ SLO
 ├── tests/                       # test_validation · test_api · test_model_quality (+ fixtures/)
-├── docs/                        # Canvas · SLO & Retrain Policy · Report Outline
+├── docs/                        # Canvas · SLO & Retrain Policy · Report Outline · Model Explanation
 ├── notebooks/                   # พื้นที่สำหรับ notebook สำรวจข้อมูล (ยังว่าง)
 └── reports/drift_report.html    # ผล data drift ล่าสุด
 ```
@@ -147,6 +148,8 @@ docker run -d --name usedcar-api -p 8000:8000 usedcar-api python -m uvicorn src.
 | `owner` | `First Owner`, `Second Owner`, `Third Owner`, `Fourth & Above Owner`, `Test Drive Car` |
 | `year` | 1980–2026 |
 | `km_driven` | 0–3,000,000 |
+| `seats` | 2–14 (ไม่ส่งได้) |
+| `mileage`, `engine`, `max_power`, `torque` | ข้อความที่มีตัวเลข เช่น `"23.4 kmpl"`, `"1248 CC"` (ไม่ส่งได้) — ถ้าไม่มีตัวเลข ติดลบ หรือเกิน 50 kmpl / 10,000 CC / 2,000 bhp / 5,000 Nm ได้ 422 |
 
 ### 6. วัดประสิทธิภาพและสถานะระบบ (ขณะ container รันอยู่)
 
@@ -168,7 +171,7 @@ python -m src.monitor_concept_drift
 python -m src.rollback
 ```
 
-ย้าย alias `champion` ไปเวอร์ชันก่อนหน้าอัตโนมัติ (เช่น 2 → 1) ถ้าไม่มีเวอร์ชันก่อนหน้าจะแจ้ง ERROR (exit 1)
+ย้าย alias `champion` ไปเวอร์ชันก่อนหน้าที่**ผ่าน gate** อัตโนมัติ (tag `gate_passed=true`) ข้ามเวอร์ชันที่ตกด่าน เช่น 2 → 1 ถ้าไม่มีเวอร์ชันแบบนั้นจะแจ้ง ERROR (exit 1)
 ให้ API ใช้เวอร์ชันที่ย้อนกลับ: `python -m src.export_model` แล้ว build/run Docker ใหม่ (ขั้น 5)
 
 ### 9. ทดสอบและตรวจคุณภาพโค้ด (ชุดเดียวกับ CI)
@@ -193,13 +196,18 @@ mlflow ui --backend-store-uri sqlite:///mlflow.db
 เปิด http://localhost:5000 → experiment `used-car-price` (เปรียบเทียบ run) และ Models → `used-car-price` (เวอร์ชัน + alias)
 
 - ทุก run บันทึก: เวอร์ชันโค้ด (`git_sha`), เวอร์ชันข้อมูล (`data_version` = MD5), hyperparameters, metrics, model artifact, สภาพแวดล้อม (Python/scikit-learn/pandas/numpy)
-- `register.py` เลือก run ที่ val MAE ต่ำสุด (ไม่รวม baseline) → register → ผ่าน gate MAPE ≤ 20% จึงตั้ง alias `champion`
+- `train.py` tune Ridge ด้วย alpha 0.1 / 1 / 10 / 50 / 100 (แยก run `ridge_alpha=…`) เลือกจาก val MAE → alpha = 1.0
+- `register.py` เลือก run ที่ val MAE ต่ำสุด (ไม่รวม baseline) → register → ต้องผ่าน gate MAPE ≤ 20% **และ** MAE บน test ไม่แย่กว่า champion ปัจจุบัน จึงตั้ง alias `champion` และติด tag `gate_passed=true`
+  - ผ่าน gate แต่แย่กว่า champion → ไม่ promote (`gate_passed=false`) pipeline เดินต่อและ export champion เดิม (exit 0)
+  - ไม่ผ่าน gate → `gate_passed=false` และหยุด pipeline (exit 1)
+  - ผลคือรัน pipeline ซ้ำได้อย่างปลอดภัย: ถ้าโมเดลใหม่ไม่ดีกว่า champion เดิมจะไม่ถูกแทนที่
+- อธิบายผลโมเดล: `python -m src.explain_model` → [docs/model_explanation.md](docs/model_explanation.md) (coefficient รายฟีเจอร์ + เหตุผลการเลือก alpha)
 - `export_model.py` export เฉพาะ `champion` ให้ API ใช้
 
 | โมเดล (val set) | MAE | RMSE | MAPE |
 |---|---|---|---|
 | baseline (median) | 415,937 | 734,079 | 45.3% |
-| **Ridge** | **120,615** | **187,566** | 17.1% |
+| **Ridge (alpha=1.0)** | **120,615** | **187,566** | 17.1% |
 | HistGradientBoosting | 129,150 | 356,127 | 14.4% |
 | RandomForest | 135,776 | 363,139 | 15.0% |
 
@@ -258,7 +266,12 @@ mlflow ui --backend-store-uri sqlite:///mlflow.db
 | `ba82faa` | เกณฑ์แจ้งเตือน data drift 50% + exit code ใน `monitor_drift.py` |
 | `7a03d17` | `check_system_health.py` แสดง UNHEALTHY แทน traceback เมื่อ API ไม่ตอบสนอง |
 | `593c3fe` | อธิบายข้อจำกัด `/metrics` แบบ multi-worker + คำสั่ง demo `--workers 1` |
-| — | sync ตัวเลขในเอกสารให้ตรงกับ champion v4 และ SLO ล่าสุด |
+| `f98ef3f` | sync ตัวเลขในเอกสารให้ตรงกับ champion v4 และ SLO ล่าสุด |
+| `ca9e770` | API ตรวจค่าตัวเลขให้ตรงกับ schema ตอนเทรน (seats 2–14, mileage/engine/max_power/torque) |
+| `c0cd1ab` | rollback ข้ามเวอร์ชันที่ตกด่านด้วย tag `gate_passed` |
+| `a6b0678` | Ridge hyperparameter tuning (alpha 5 ค่า) + `src/explain_model.py` |
+| `b9ea755` | `register.py` เทียบกับ champion ปัจจุบันก่อน promote (ผ่าน gate + MAE ไม่แย่กว่า) |
+| — | sync เอกสารกับ tuning, rollback แบบ `gate_passed` และการตรวจค่าตัวเลขของ API |
 
 - AI ช่วยตรวจ repo เทียบกับเกณฑ์การให้คะแนน และคำนวณตัวเลขเชิงธุรกิจจากโมเดลจริง
 - ตรวจสอบได้ด้วย `git log --grep="Co-Authored-By: Claude"`
