@@ -126,8 +126,12 @@
 - **หลักฐาน CI ไม่ผ่าน** — branch `demo/ci-failure` commit `0c5a5f9` แก้ช่วง `year` ใน schema เป็น 1980–2000 โดยตั้งใจ → test ล้ม → revert ใน `d381de7` → แคปหน้า Actions ทั้งสองครั้ง
 
 ## หมวด 7: การควบคุม Pipeline การทำซ้ำ และการกำกับดูแล (2 คะแนน)
-- **Pipeline** (`src/pipeline.py`) — `data_split → validation → train → register → export_model` สั่งด้วย `python -m src.pipeline` คำสั่งเดียว, หยุดทันทีเมื่อขั้นใดล้ม, ใช้ `sys.executable` ให้ทุกขั้นรันใน Python/venv เดียวกัน
-  - **[TODO]** เกณฑ์ต้องการ "Pipeline แบบ DAG" และตาราง Orchestration ไม่มีตัวเลือก "เขียนเอง" → พิจารณา Prefect/Dagster และเพิ่มขั้น download + build/run container
+- **Pipeline แบบ DAG ด้วย Prefect** (`src/flow.py`, สั่งด้วย `python -m src.pipeline` คำสั่งเดียว) —
+  `download → split → validate → train → register(gate) → export → [serve]` และสาขา `split → data_drift`, `register → concept_drift` รันขนาน
+  - ตั้งแต่ข้อมูลดิบถึงการให้บริการ: ดาวน์โหลดเองถ้ายังไม่มีข้อมูล, `--serve` = build/run Docker ต่อท้าย
+  - ทดสอบแล้ว (container Linux): ปกติ → Completed exit 0 · gate ไม่ผ่าน → `หยุดที่ขั้น register_gate` (export = NotReady) exit 1 ·
+    ข้อมูลเสีย (`fuel="Water"`) → `หยุดที่ขั้น validate_data` (train/register/export = NotReady) exit 1 · ไม่มีข้อมูลดิบ → ดาวน์โหลดแล้วรันจนจบ
+  - Prefect UI (`prefect server start`) แสดง flow run + 8 task runs
 - **Reproducibility** — `requirements.txt` ล็อก 141 แพ็กเกจ (`pywin32` ติดตั้งเฉพาะ Windows), Python 3.12 ทั้ง Docker/CI, `random_state=42`, split ตามปี (ไม่สุ่ม)
   - ยืนยันแล้ว: venv ใหม่ + `pip install -r requirements.txt` + `python -m src.pipeline` → ได้ตัวเลขเท่าเดิมทุกตัว
 - **Git / GitHub** — ทำงานผ่าน feature branch + Pull Request, merge ผ่าน Pull Request แล้ว 15 PR (#1–#16 ยกเว้น #4) + merge ตรง 1 ครั้ง (`9e26f8c`), รวม 44 commits
@@ -145,7 +149,7 @@
   | Data Validation | Pandera | ประกาศ schema เป็นโค้ด Python ใช้กับ pandas ตรงๆ, lazy validation |
   | Experiment Tracking | MLflow | บันทึก params/metrics/artifacts + UI เทียบ run |
   | Model Registry | MLflow Registry | มีเวอร์ชัน + alias (`champion`) ใช้ทำ gate/rollback |
-  | Pipeline Orchestration | สคริปต์ `src/pipeline.py` | **[TODO]** ต้องให้เหตุผล หรือเปลี่ยนเป็น Prefect/Dagster |
+  | Pipeline Orchestration | Prefect | เขียน flow/task เป็น Python ธรรมดา รันได้ด้วยคำสั่งเดียวไม่ต้องตั้ง server, มี state/UI ต่อ task, เบากว่า Airflow/Dagster |
   | Model Serving | FastAPI + uvicorn | validation ด้วย pydantic (ตอบ 422 อัตโนมัติ), เร็ว, เขียนง่าย |
   | Monitoring | Evidently + สคริปต์เขียนเอง | Evidently สำหรับ data drift; concept drift/system health เขียนเอง |
   | CI/CD | GitHub Actions | ฟรีสำหรับ repo, ผูกกับ PR |
@@ -200,7 +204,7 @@
 | **G** | Model Registry + Gate | `src/register.py` (MLflow Registry) | best run → version ใหม่ → test MAPE ≤ 20%? และ MAE ไม่แย่กว่า champion? → alias `champion` |
 | **H** | Rollback | `src/rollback.py` | ย้าย alias `champion` กลับเวอร์ชันก่อน |
 | **I** | Export | `src/export_model.py` | `champion` → `model_export/model.pkl` |
-| **J** | Pipeline Runner | `src/pipeline.py` | สั่ง B → C → E → G → I ตามลำดับ |
+| **J** | Pipeline Orchestrator | Prefect flow `src/flow.py` (เรียกผ่าน `src/pipeline.py`) | DAG: A → B → C → E → G → I (+ O, P ขนาน, + K ถ้า `--serve`) |
 | **K** | Docker Container | `Dockerfile` (python:3.12-slim, 4 workers, HEALTHCHECK) | บรรจุ L + D + `model.pkl` |
 | **L** | FastAPI Service | `src/api.py` | `/predict`, `/health`, `/metrics` |
 | **M** | Client | ผู้ขาย / `curl` / `scripts/load_test.py` | JSON สเปกรถ → ราคา INR + THB |
