@@ -36,6 +36,7 @@ UsedCarPrice-mlops/
 ├── scripts/
 │   ├── download_data.py         # ดาวน์โหลดข้อมูลจาก Kaggle -> data/raw/
 │   └── load_test.py             # วัด latency p50/p95/p99 + throughput
+├── static/                      # Swagger UI (JS/CSS/favicon) สำหรับ /docs แบบออฟไลน์ — ที่มา/เวอร์ชันใน static/README.md
 ├── src/
 │   ├── data_split.py            # ลบข้อมูลซ้ำ + แบ่ง train/val/test ตามปี
 │   ├── validation.py            # Pandera schema
@@ -141,7 +142,7 @@ curl http://localhost:8000/metrics
 ```
 
 ผลตัวอย่าง `/predict`: `{"predicted_price_inr": ..., "predicted_price_thb": ..., "model_version": "2"}`
-เอกสาร API แบบโต้ตอบ: http://localhost:8000/docs
+เอกสาร API แบบโต้ตอบ: http://localhost:8000/docs (Swagger UI โหลดจาก `static/` ในเครื่อง เปิดได้แม้ไม่มีอินเทอร์เน็ต)
 
 #### ข้อควรรู้เรื่อง `/metrics` (สำคัญตอน demo)
 

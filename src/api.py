@@ -9,6 +9,8 @@ from typing import Literal, Optional
 import cloudpickle
 import pandas as pd
 from fastapi import FastAPI, HTTPException
+from fastapi.openapi.docs import get_swagger_ui_html, get_swagger_ui_oauth2_redirect_html
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from src.data_cleaning import clean_cars
@@ -56,7 +58,29 @@ async def lifespan(app):
     yield
 
 
-app = FastAPI(title="Used Car Price API", lifespan=lifespan)
+# /docs แบบออฟไลน์: ปิด docs เริ่มต้น (โหลด Swagger UI จาก CDN) แล้วเสิร์ฟไฟล์จาก static/ ของโปรเจกต์แทน
+# ตามแนวทาง "Self-hosting JavaScript and CSS for docs" ของ FastAPI — ไฟล์และเวอร์ชันดูใน static/README.md
+STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
+
+app = FastAPI(title="Used Car Price API", lifespan=lifespan, docs_url=None)
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+
+@app.get("/docs", include_in_schema=False)
+def swagger_ui_html():
+    return get_swagger_ui_html(
+        openapi_url=app.openapi_url,
+        title=f"{app.title} - Swagger UI",
+        oauth2_redirect_url=app.swagger_ui_oauth2_redirect_url,
+        swagger_js_url="/static/swagger-ui-bundle.js",
+        swagger_css_url="/static/swagger-ui.css",
+        swagger_favicon_url="/static/favicon.png",
+    )
+
+
+@app.get(app.swagger_ui_oauth2_redirect_url, include_in_schema=False)
+def swagger_ui_redirect():
+    return get_swagger_ui_oauth2_redirect_html()
 
 
 @app.get("/health")

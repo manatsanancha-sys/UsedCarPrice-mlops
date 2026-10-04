@@ -7,6 +7,7 @@ RUN pip install --no-cache-dir -r requirements-api.txt
 COPY src/__init__.py src/__init__.py
 COPY src/data_cleaning.py src/data_cleaning.py
 COPY src/api.py src/api.py
+COPY static/ static/
 COPY model_export/ model_export/
 
 EXPOSE 8000
