@@ -36,7 +36,7 @@ UsedCarPrice-mlops/
 ├── scripts/
 │   ├── download_data.py         # ดาวน์โหลดข้อมูลจาก Kaggle -> data/raw/
 │   └── load_test.py             # วัด latency p50/p95/p99 + throughput
-├── static/                      # Swagger UI (JS/CSS/favicon) สำหรับ /docs แบบออฟไลน์ — ที่มา/เวอร์ชันใน static/README.md
+├── static/                      # index.html (หน้า UI ภาษาไทยที่ /) + Swagger UI สำหรับ /docs แบบออฟไลน์ — ที่มาใน static/README.md
 ├── src/
 │   ├── data_split.py            # ลบข้อมูลซ้ำ + แบ่ง train/val/test ตามปี
 │   ├── validation.py            # Pandera schema
@@ -142,7 +142,12 @@ curl http://localhost:8000/metrics
 ```
 
 ผลตัวอย่าง `/predict`: `{"predicted_price_inr": ..., "predicted_price_thb": ..., "model_version": "2"}`
-เอกสาร API แบบโต้ตอบ: http://localhost:8000/docs (Swagger UI โหลดจาก `static/` ในเครื่อง เปิดได้แม้ไม่มีอินเทอร์เน็ต)
+หน้าใช้งานภาษาไทยสำหรับสาธิต: http://localhost:8000/ (หรือ `/app`) — กรอกสเปกรถหรือกด "ใช้ข้อมูลตัวอย่าง" แล้ว "ทำนายราคา"
+แสดงราคาเป็นบาทตัวใหญ่ + รูปี/เวอร์ชันโมเดล และแปลงข้อผิดพลาด 422 เป็นข้อความไทยบอกช่องที่ผิด
+
+เอกสาร API แบบโต้ตอบ: http://localhost:8000/docs — แบ่งกลุ่ม "ทำนายราคา" / "เฝ้าระวังระบบ" มีคำอธิบายภาษาไทยทุกช่อง
+และตัวอย่าง request เป็นรถจริง (กด Try it out → Execute ได้ 200 ทันที)
+ทั้งสองหน้าโหลดไฟล์จาก `static/` ในเครื่อง ไม่เรียก CDN จึงเปิดได้แม้ไม่มีอินเทอร์เน็ต
 
 #### ข้อควรรู้เรื่อง `/metrics` (สำคัญตอน demo)
 

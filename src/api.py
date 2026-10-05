@@ -4,12 +4,13 @@ import re
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Annotated, Literal, Optional
 
 import cloudpickle
 import pandas as pd
-from fastapi import FastAPI, HTTPException
+from fastapi import Body, FastAPI, HTTPException
 from fastapi.openapi.docs import get_swagger_ui_html, get_swagger_ui_oauth2_redirect_html
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -35,20 +36,48 @@ STATE = {}
 NUMERIC_TEXT_LIMITS = {"mileage": 50, "engine": 10_000, "max_power": 2_000, "torque": 5_000}
 
 
+# ตัวอย่างรถจริงที่ผ่านการตรวจทุกข้อ -> ใช้เป็นค่าเริ่มต้นใน /docs (กด Execute แล้วได้ 200 ทันที) และในหน้า UI
+EXAMPLE_CAR = {
+    "name": "Maruti Swift Dzire VDI", "year": 2014, "km_driven": 145500,
+    "fuel": "Diesel", "seller_type": "Individual", "transmission": "Manual", "owner": "First Owner",
+    "mileage": "23.4 kmpl", "engine": "1248 CC", "max_power": "74 bhp", "torque": "190Nm@ 2000rpm", "seats": 5,
+}
+
+
 class Car(BaseModel):
-    name: str
-    year: int = Field(ge=1980, le=2026)
-    km_driven: int = Field(ge=0, le=3_000_000)
+    model_config = {"json_schema_extra": {"examples": [EXAMPLE_CAR]}}
+
+    name: str = Field(description="ชื่อยี่ห้อและรุ่น (คำแรกใช้เป็นยี่ห้อ)", examples=["Maruti Swift Dzire VDI"])
+    year: int = Field(ge=1980, le=2026, description="ปีรถ (1980–2026)", examples=[2014])
+    km_driven: int = Field(ge=0, le=3_000_000, description="เลขไมล์ หน่วยกิโลเมตร (0–3,000,000)",
+                           examples=[145500])
     # ค่าที่ยอมรับต้องตรงกับ schema ใน src/validation.py (ค่าอื่นตอบ 422)
-    fuel: Literal["Diesel", "Petrol", "CNG", "LPG"]
-    seller_type: Literal["Individual", "Dealer", "Trustmark Dealer"]
-    transmission: Literal["Manual", "Automatic"]
-    owner: Literal["First Owner", "Second Owner", "Third Owner", "Fourth & Above Owner", "Test Drive Car"]
-    mileage: Optional[str] = None
-    engine: Optional[str] = None
-    max_power: Optional[str] = None
-    torque: Optional[str] = None
-    seats: Optional[float] = Field(default=None, ge=2, le=14)
+    fuel: Literal["Diesel", "Petrol", "CNG", "LPG"] = Field(description="เชื้อเพลิง", examples=["Diesel"])
+    seller_type: Literal["Individual", "Dealer", "Trustmark Dealer"] = Field(
+        description="ประเภทผู้ขาย: Individual = บุคคล, Dealer / Trustmark Dealer = ดีลเลอร์", examples=["Individual"])
+    transmission: Literal["Manual", "Automatic"] = Field(description="เกียร์: Manual = ธรรมดา, Automatic = อัตโนมัติ",
+                                                         examples=["Manual"])
+    owner: Literal["First Owner", "Second Owner", "Third Owner", "Fourth & Above Owner", "Test Drive Car"] = Field(
+        description="ลำดับเจ้าของ เช่น First Owner = มือหนึ่ง", examples=["First Owner"])
+    mileage: Optional[str] = Field(default=None, description="อัตราสิ้นเปลือง หน่วย kmpl (ไม่ส่งได้)",
+                                   examples=["23.4 kmpl"])
+    engine: Optional[str] = Field(default=None, description="ขนาดเครื่องยนต์ หน่วย CC (ไม่ส่งได้)",
+                                  examples=["1248 CC"])
+    max_power: Optional[str] = Field(default=None, description="กำลังสูงสุด หน่วย bhp (ไม่ส่งได้)",
+                                     examples=["74 bhp"])
+    torque: Optional[str] = Field(default=None, description="แรงบิด หน่วย Nm หรือ kgm (ไม่ส่งได้)",
+                                  examples=["190Nm@ 2000rpm"])
+    seats: Optional[float] = Field(default=None, ge=2, le=14, description="จำนวนที่นั่ง 2–14 (ไม่ส่งได้)",
+                                   examples=[5])
+
+
+class Prediction(BaseModel):
+    # ลำดับฟิลด์ตรงกับ response เดิม (inr, thb, model_version)
+    predicted_price_inr: int = Field(description="ราคาที่ทำนาย หน่วยรูปีอินเดีย (ผลจากโมเดลโดยตรง)",
+                                     examples=[437799])
+    predicted_price_thb: int = Field(description="ราคาที่ทำนาย หน่วยบาท (แปลงจากรูปีที่ 1 INR = 0.39 THB)",
+                                     examples=[170741])
+    model_version: str = Field(description="เวอร์ชันโมเดล (champion) ที่ใช้ทำนาย", examples=["4"])
 
 
 @asynccontextmanager
@@ -62,7 +91,13 @@ async def lifespan(app):
 # ตามแนวทาง "Self-hosting JavaScript and CSS for docs" ของ FastAPI — ไฟล์และเวอร์ชันดูใน static/README.md
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
-app = FastAPI(title="Used Car Price API", lifespan=lifespan, docs_url=None)
+OPENAPI_TAGS = [
+    {"name": "ทำนายราคา", "description": "ส่งสเปกรถมือสอง แล้วได้ราคาที่เหมาะสม (บาทและรูปี)"},
+    {"name": "เฝ้าระวังระบบ", "description": "ตรวจว่า API พร้อมใช้งานและดูสถิติการใช้งาน"},
+]
+
+app = FastAPI(title="Used Car Price API", lifespan=lifespan, docs_url=None, openapi_tags=OPENAPI_TAGS,
+              description="ระบบทำนายราคารถมือสอง — หน้าใช้งานภาษาไทยอยู่ที่ `/` · เอกสารนี้ใช้งานออฟไลน์ได้")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
@@ -83,7 +118,15 @@ def swagger_ui_redirect():
     return get_swagger_ui_oauth2_redirect_html()
 
 
-@app.get("/health")
+@app.get("/", include_in_schema=False)
+@app.get("/app", include_in_schema=False)
+def thai_ui():
+    # หน้า UI ภาษาไทยสำหรับสาธิต (ไฟล์เดียว ไม่ใช้ CDN) เรียก /predict ด้วย relative path
+    return FileResponse(STATIC_DIR / "index.html", media_type="text/html")
+
+
+@app.get("/health", tags=["เฝ้าระวังระบบ"], summary="ตรวจสถานะระบบ (Health Check)",
+         description="บอกว่า API พร้อมใช้งานไหม และโมเดลเวอร์ชันอะไร")
 def health():
     return {"status": "ok", "model_version": STATE.get("version")}
 
@@ -111,8 +154,12 @@ def numeric_text_errors(car: Car, cleaned: pd.Series) -> list:
     return errors
 
 
-@app.post("/predict")
-def predict(car: Car):
+@app.post("/predict", tags=["ทำนายราคา"], summary="ทำนายราคารถมือสอง", response_model=Prediction,
+          description="ส่งสเปกรถ แล้วได้ราคาที่ทำนายเป็นบาทและรูปี ข้อมูลผิดรูปแบบหรือเกินขอบเขตตอบ 422 "
+                      "พร้อมบอกช่องที่ผิด",
+          responses={422: {"description": "ข้อมูลไม่ถูกต้อง — `detail` บอกช่อง (`loc`) และเหตุผล (`msg`)"}})
+def predict(car: Annotated[Car, Body(openapi_examples={
+        "maruti": {"summary": "Maruti Swift Dzire VDI ปี 2014 (ข้อมูลจริง)", "value": EXAMPLE_CAR}})]):
     df = clean_cars(pd.DataFrame([car.model_dump()]))
     num = STATE["num"]
     df[num] = df[num].apply(pd.to_numeric, errors="coerce")
@@ -148,7 +195,8 @@ def predict(car: Car):
         raise
 
 
-@app.get("/metrics")
+@app.get("/metrics", tags=["เฝ้าระวังระบบ"], summary="ดูสถิติการใช้งาน (Metrics)",
+         description="จำนวนคำขอ ข้อผิดพลาด และความเร็วตอบกลับ (หมายเหตุ: นับแยกตาม worker)")
 def metrics():
     # ค่าต่อ worker เท่านั้น (ดูคำอธิบายที่ METRICS); นับเฉพาะคำขอที่เข้าถึง predict() ไม่รวม 422
     lat = sorted(METRICS["latencies_ms"])
