@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ทำนายราคารถมือสอง</title>
+<link rel="icon" href="/static/favicon.png">
+<style>
+  /* ไฟล์เดียว ไม่โหลดอะไรจากอินเทอร์เน็ต — ใช้ฟอนต์ที่มีในเครื่อง */
+  :root {
+    --ink: #111827; --muted: #4b5563; --line: #d1d5db; --bg: #f3f4f6; --card: #ffffff;
+    --brand: #1d4ed8; --brand-ink: #ffffff; --ok: #065f46; --ok-bg: #ecfdf5; --err: #991b1b; --err-bg: #fef2f2;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Leelawadee UI", "Noto Sans Thai", "Sarabun", Tahoma, "Segoe UI", sans-serif;
+    font-size: 20px; line-height: 1.5;
+  }
+  main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 40px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 24px; }
+  .layout { display: grid; grid-template-columns: 1.3fr 1fr; gap: 24px; align-items: start; }
+  @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } h1 { font-size: 32px; } }
+  .card { background: var(--card); border: 2px solid var(--line); border-radius: 14px; padding: 24px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 20px; }
+  .full { grid-column: 1 / -1; }
+  label { display: block; font-weight: 700; margin-bottom: 6px; }
+  label small { font-weight: 400; color: var(--muted); }
+  input, select {
+    width: 100%; font: inherit; color: var(--ink); background: #fff;
+    border: 2px solid #9ca3af; border-radius: 10px; padding: 10px 12px;
+  }
+  input:focus, select:focus { outline: 3px solid #93c5fd; border-color: var(--brand); }
+  .unit { display: flex; align-items: center; gap: 8px; }
+  .unit span { color: var(--muted); white-space: nowrap; }
+  .actions { display: flex; gap: 12px; margin-top: 24px; flex-wrap: wrap; }
+  button { font: inherit; font-weight: 700; border-radius: 10px; padding: 12px 22px; cursor: pointer; border: 2px solid var(--brand); }
+  .primary { background: var(--brand); color: var(--brand-ink); font-size: 24px; }
+  .secondary { background: #fff; color: var(--brand); }
+  button:disabled { opacity: .6; cursor: wait; }
+  .result-title { font-weight: 700; color: var(--muted); margin: 0 0 8px; }
+  .price { font-size: 64px; font-weight: 800; line-height: 1.1; color: var(--ok); margin: 0; word-break: break-word; }
+  .detail { font-size: 22px; margin: 8px 0 16px; }
+  .note { font-size: 16px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 12px; margin: 0; }
+  .placeholder { color: var(--muted); }
+  .ok-box { background: var(--ok-bg); border-color: #6ee7b7; }
+  .err-box { background: var(--err-bg); border-color: #fca5a5; }
+  .err-title { color: var(--err); font-weight: 800; font-size: 24px; margin: 0 0 8px; }
+  .err-list { margin: 0; padding-left: 24px; color: var(--err); }
+  .footer { margin-top: 24px; font-size: 16px; color: var(--muted); }
+  .footer a { color: var(--brand); }
+</style>
+</head>
+<body>
+<main>
+  <h1>ทำนายราคารถมือสอง</h1>
+  <p class="sub">กรอกสเปกรถ แล้วกด “ทำนายราคา” — ช่องที่ไม่ทราบเว้นว่างได้</p>
+
+  <div class="layout">
+    <form id="car-form" class="card" novalidate>
+      <div class="grid">
+        <div class="full">
+          <label for="name">ชื่อยี่ห้อและรุ่น</label>
+          <input id="name" placeholder="เช่น Maruti Swift Dzire VDI" autocomplete="off">
+        </div>
+        <div>
+          <label for="year">ปีรถ <small>(1980–2026)</small></label>
+          <input id="year" type="number" inputmode="numeric" min="1980" max="2026">
+        </div>
+        <div>
+          <label for="km_driven">เลขไมล์ <small>(กม.)</small></label>
+          <input id="km_driven" type="number" inputmode="numeric" min="0">
+        </div>
+        <div>
+          <label for="fuel">เชื้อเพลิง</label>
+          <select id="fuel">
+            <option value="Diesel">ดีเซล (Diesel)</option>
+            <option value="Petrol">เบนซิน (Petrol)</option>
+            <option value="CNG">CNG</option>
+            <option value="LPG">LPG</option>
+          </select>
+        </div>
+        <div>
+          <label for="transmission">เกียร์</label>
+          <select id="transmission">
+            <option value="Manual">ธรรมดา (Manual)</option>
+            <option value="Automatic">อัตโนมัติ (Automatic)</option>
+          </select>
+        </div>
+        <div>
+          <label for="seller_type">ประเภทผู้ขาย</label>
+          <select id="seller_type">
+            <option value="Individual">บุคคลทั่วไป (Individual)</option>
+            <option value="Dealer">ดีลเลอร์ (Dealer)</option>
+            <option value="Trustmark Dealer">ดีลเลอร์ Trustmark</option>
+          </select>
+        </div>
+        <div>
+          <label for="owner">เจ้าของ</label>
+          <select id="owner">
+            <option value="First Owner">มือหนึ่ง</option>
+            <option value="Second Owner">มือสอง</option>
+            <option value="Third Owner">มือสาม</option>
+            <option value="Fourth &amp; Above Owner">มือสี่ขึ้นไป</option>
+            <option value="Test Drive Car">รถทดลองขับ</option>
+          </select>
+        </div>
+        <div>
+          <label for="mileage">อัตราสิ้นเปลือง</label>
+          <div class="unit"><input id="mileage" type="number" step="any" min="0"><span>กม./ลิตร</span></div>
+        </div>
+        <div>
+          <label for="engine">ขนาดเครื่องยนต์</label>
+          <div class="unit"><input id="engine" type="number" step="any" min="0"><span>CC</span></div>
+        </div>
+        <div>
+          <label for="max_power">กำลังสูงสุด</label>
+          <div class="unit"><input id="max_power" type="number" step="any" min="0"><span>bhp</span></div>
+        </div>
+        <div>
+          <label for="torque">แรงบิด</label>
+          <div class="unit"><input id="torque" type="number" step="any" min="0"><span>Nm</span></div>
+        </div>
+        <div>
+          <label for="seats">จำนวนที่นั่ง <small>(2–14)</small></label>
+          <input id="seats" type="number" inputmode="numeric" step="1">
+        </div>
+      </div>
+      <div class="actions">
+        <button type="submit" class="primary" id="predict-btn">ทำนายราคา</button>
+        <button type="button" class="secondary" id="sample-btn">ใช้ข้อมูลตัวอย่าง</button>
+      </div>
+    </form>
+
+    <section id="result" class="card" aria-live="polite">
+      <p class="result-title">ราคาที่ทำนาย</p>
+      <p class="placeholder">ยังไม่มีผล — กรอกข้อมูลแล้วกด “ทำนายราคา”</p>
+    </section>
+  </div>
+
+  <p class="footer">เอกสาร API: <a href="/docs">/docs</a> · สถานะระบบ: <a href="/health">/health</a></p>
+</main>
+
+<script>
+const SAMPLE = {
+  name: "Maruti Swift Dzire VDI", year: 2014, km_driven: 145500, fuel: "Diesel",
+  seller_type: "Individual", transmission: "Manual", owner: "First Owner",
+  mileage: 23.4, engine: 1248, max_power: 74, torque: 190, seats: 5,
+};
+// ชื่อช่องภาษาไทยสำหรับข้อความผิดพลาด
+const LABELS = {
+  name: "ชื่อยี่ห้อและรุ่น", year: "ปีรถ", km_driven: "เลขไมล์", fuel: "เชื้อเพลิง",
+  seller_type: "ประเภทผู้ขาย", transmission: "เกียร์", owner: "เจ้าของ",
+  mileage: "อัตราสิ้นเปลือง", engine: "ขนาดเครื่องยนต์", max_power: "กำลังสูงสุด",
+  torque: "แรงบิด", seats: "จำนวนที่นั่ง",
+};
+// ช่องตัวเลขที่ API รับเป็นข้อความพร้อมหน่วย
+const UNIT_TEXT = { mileage: v => `${v} kmpl`, engine: v => `${v} CC`, max_power: v => `${v} bhp`, torque: v => `${v}Nm` };
+
+const $ = id => document.getElementById(id);
+const fmt = n => Number(n).toLocaleString("en-US");
+
+function value(id) {
+  const raw = $(id).value.trim();
+  return raw === "" ? null : raw;
+}
+
+function buildPayload() {
+  const num = v => (v === null ? null : Number(v));
+  const payload = {
+    name: value("name"),
+    year: num(value("year")),
+    km_driven: num(value("km_driven")),
+    fuel: $("fuel").value,
+    seller_type: $("seller_type").value,
+    transmission: $("transmission").value,
+    owner: $("owner").value,
+    seats: num(value("seats")),
+  };
+  for (const [field, toText] of Object.entries(UNIT_TEXT)) {
+    const v = value(field);
+    payload[field] = v === null ? null : toText(v);   // ว่าง -> null (ให้โมเดลเติมค่าเอง)
+  }
+  return payload;
+}
+
+function fillSample() {
+  for (const [field, v] of Object.entries(SAMPLE)) $(field).value = v;
+}
+
+function thaiError(item) {
+  const field = Array.isArray(item.loc) ? item.loc[item.loc.length - 1] : "";
+  const label = LABELS[field] ? `${LABELS[field]} (${field})` : (field || "ข้อมูล");
+  const ctx = item.ctx || {};
+  switch (item.type) {
+    case "less_than_equal": return `${label} ต้องไม่เกิน ${fmt(ctx.le)}`;
+    case "less_than": return `${label} ต้องน้อยกว่า ${fmt(ctx.lt)}`;
+    case "greater_than_equal": return `${label} ต้องไม่น้อยกว่า ${fmt(ctx.ge)}`;
+    case "greater_than": return `${label} ต้องมากกว่า ${fmt(ctx.gt)}`;
+    case "missing": case "int_type": case "string_type": case "float_type":
+      return `กรุณากรอก${label}`;
+    case "int_parsing": case "int_from_float": return `${label} ต้องเป็นจำนวนเต็ม`;
+    case "float_parsing": return `${label} ต้องเป็นตัวเลข`;
+    case "literal_error": return `${label} ไม่ใช่ค่าที่ระบบรองรับ`;
+  }
+  // ข้อความจากการตรวจค่าตัวเลขใน API เช่น "engine ไม่ถูกต้อง: ค่าติดลบ"
+  const msg = String(item.msg || "ข้อมูลไม่ถูกต้อง").replace(new RegExp(`^${field}\\s*`), "");
+  return `${label} ${msg}`;
+}
+
+function show(kind, build) {
+  const box = $("result");
+  box.className = "card " + (kind === "ok" ? "ok-box" : kind === "err" ? "err-box" : "");
+  box.replaceChildren();
+  build(box);
+  box.scrollIntoView({ block: "nearest" });  // ให้เห็นผลทันทีแม้เลื่อนฟอร์มลงไปแล้ว
+}
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+function showPrice(data) {
+  show("ok", box => {
+    box.append(
+      el("p", "result-title", "ราคาที่ทำนาย"),
+      el("p", "price", `฿${fmt(data.predicted_price_thb)}`),
+      el("p", "detail", `≈ ${fmt(data.predicted_price_inr)} รูปี · โมเดล v${data.model_version}`),
+      el("p", "note", "ประเมินจากข้อมูลตลาดอินเดีย แปลงเป็นบาทที่ 1 INR = 0.39 THB เพื่อการศึกษา"),
+    );
+  });
+}
+
+function showErrors(title, messages) {
+  show("err", box => {
+    box.append(el("p", "err-title", title));
+    const ul = el("ul", "err-list");
+    for (const m of messages) ul.append(el("li", null, m));
+    box.append(ul);
+  });
+}
+
+async function predict(event) {
+  event.preventDefault();
+  const btn = $("predict-btn");
+  btn.disabled = true; btn.textContent = "กำลังทำนาย…";
+  try {
+    const res = await fetch("predict", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(buildPayload()),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) {
+      showPrice(data);
+    } else if (res.status === 422 && Array.isArray(data.detail)) {
+      showErrors("ข้อมูลไม่ถูกต้อง กรุณาแก้ไข", data.detail.map(thaiError));
+    } else {
+      showErrors("ระบบขัดข้อง", [`เซิร์ฟเวอร์ตอบกลับรหัส ${res.status} กรุณาลองใหม่อีกครั้ง`]);
+    }
+  } catch (e) {
+    showErrors("ติดต่อ API ไม่ได้", ["ตรวจสอบว่าเซิร์ฟเวอร์ทำงานอยู่ แล้วลองใหม่อีกครั้ง"]);
+  } finally {
+    btn.disabled = false; btn.textContent = "ทำนายราคา";
+  }
+}
+
+$("car-form").addEventListener("submit", predict);
+$("sample-btn").addEventListener("click", fillSample);
+</script>
+</body>
+</html>

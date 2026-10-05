@@ -83,3 +83,22 @@ def test_training_rows_pass_api_validation(client):
     for row in rows.to_dict("records"):
         r = client.post("/predict", json=row)
         assert r.status_code == 200, (row, r.json())
+
+
+def test_thai_ui_served_at_root(client):
+    for path in ["/", "/app"]:
+        r = client.get(path)
+        assert r.status_code == 200
+        assert r.headers["content-type"].startswith("text/html")
+        assert "ทำนายราคารถมือสอง" in r.text
+        assert "http://" not in r.text and "https://" not in r.text  # ไม่โหลดอะไรจากอินเทอร์เน็ต
+
+
+def test_openapi_example_predicts_ok(client):
+    spec = client.get("/openapi.json").json()
+    example = spec["paths"]["/predict"]["post"]["requestBody"]["content"]["application/json"]["examples"]
+    r = client.post("/predict", json=next(iter(example.values()))["value"])
+    assert r.status_code == 200
+    body = r.json()
+    assert set(body) == {"predicted_price_thb", "predicted_price_inr", "model_version"}
+    assert body["predicted_price_thb"] > 0
