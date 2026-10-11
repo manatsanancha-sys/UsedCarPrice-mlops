@@ -68,7 +68,7 @@ All checks passed!
 | `pip install -r requirements.txt` | ติดตั้งสำเร็จ |
 | `python -m src.pipeline` | จบด้วย `=== PIPELINE COMPLETE ===` โมเดลที่ดีที่สุดคือ Ridge (val MAE 120,615) ผ่าน gate และเป็น champion version 1 |
 | test set (ก่อนเทรนใหม่) | MAE 184,906, MAPE 19.6% (เกณฑ์ ≤ 20%) |
-| เฝ้าระวัง drift | ตรวจพบทั้ง Data Drift และ Concept Drift (อัตราส่วน MAE = 1.50 เกินเกณฑ์ 1.3) ซึ่งเป็นการแจ้งเตือนตามที่ออกแบบ ไม่ใช่ข้อผิดพลาด |
+| เฝ้าระวัง drift | ตรวจพบทั้ง Data Drift และ Concept Drift (อัตราส่วน MAE = 1.50 เกินเกณฑ์ 1.3) ซึ่งเป็นการแจ้งเตือนตามที่ออกแบบ ไม่ใช่ข้อผิดพลาด (หมายเหตุ: 1.50 วัดบน clone ใหม่ที่ champion เป็น v1 (ref MAE 153,995); ค่าที่ใช้ในสไลด์ 1.53 วัดบน champion v4) |
 | `python -m src.retrain` | challenger version 2 (train + val 5,908 แถว) ได้ MAE 177,922, MAPE 19.2% ดีกว่า champion เดิม จึง promote |
 | `python -m src.export_model` | export champion version 2 สำเร็จ |
 | MLflow UI | เห็น experiment `used-car-price` ครบ 9 run และ Model Registry มี version 1 และ 2 |
